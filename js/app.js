@@ -6,6 +6,7 @@ const root = document.getElementById("app");
 const ehGestao = () => S.perfil && (S.perfil.papel === "admin" || S.perfil.papel === "recepcao");
 const ehAdmin = () => S.perfil && S.perfil.papel === "admin";
 const ehProf = () => S.perfil && S.perfil.papel === "profissional";
+const empBadge = id => h("span", { class: "etag " + (empCod(id) === "atlas" ? "a" : "e"), title: empCod(id) === "atlas" ? "Paciente da Atlas" : "Paciente da Essência" }, empCod(id) === "atlas" ? "Atlas" : "Essência");
 const empCod = id => (S.emps.find(e => e.id === id) || {}).codigo;
 const profNome = id => (S.profs.find(p => p.id === id) || {}).nome || "";
 const atendeEm = p => !S.emp || !p.empresas || !p.empresas.length || p.empresas.includes(S.emp);
@@ -13,11 +14,10 @@ const nomeCurto = n => (n || "").split(" ").slice(0, 2).join(" ");
 async function ok(p) { const r = await p; if (r.error) throw new Error(r.error.message.includes("Horário já ocupado") ? "Horário já ocupado para este profissional." : r.error.message); return r.data; }
 
 function boasVindas(card) {
-  root.replaceChildren(h("div", { class: "wl" },
-    h("div", { class: "brands" },
-      h("div", { class: "brand b1" }, h("img", { src: "img/logo-essencia.png", alt: "Clínica Essência" }), h("p", {}, "Clínica Essência")),
-      h("div", { class: "brand b2" }, h("img", { src: "img/logo-atlas.png", alt: "Clínica Atlas" }), h("p", {}, "Clínica Atlas"))),
-    h("div", { class: "wl-body" }, h("div", { class: "wl-sys" }, h("b", {}, "Essária"), h("small", {}, "Essência · Atlas")), h("div", { class: "wl-card" }, card), h("p", { class: "small", style: "text-align:center;color:#8a8577;margin-top:16px" }, "Acesso restrito à equipe"))));
+  root.replaceChildren(h("div", { class: "wl2" },
+    h("div", { class: "wl2-hero" }, h("img", { class: "wl2-ico", src: "img/icon-512.png", alt: "Essária" }), h("b", {}, "Essária"), h("small", {}, "Sistema do grupo"),
+      h("div", { class: "wl2-tags" }, h("span", { class: "etag e" }, "Essência"), h("span", { class: "etag a" }, "Atlas"))),
+    h("div", { class: "wl-body" }, h("div", { class: "wl-card" }, card), h("p", { class: "small", style: "text-align:center;color:#8a8577;margin-top:16px" }, "Acesso restrito à equipe"))));
 }
 // ================= ACESSOS (login do profissional = nome; senha provisória = nome + 2026) =================
 const DOMINIO_LOGIN = "acesso.invalid"; // domínio reservado: nenhum e-mail é entregue
@@ -83,7 +83,7 @@ function shell(conteudo, ativo) {
   const eid = c => (S.emps.find(e => e.codigo === c) || {}).id || "";
   const ctx = S.emp && S.emp === eid("atlas") ? "atlas" : S.emp ? "essencia" : "todas";
   document.body.dataset.emp = ctx;
-  const logos = h("div", { class: "brand2", title: "Essária — Essência e Atlas" }, h("img", { class: ctx === "atlas" ? "dim" : "", src: "img/logo-essencia.png", alt: "Essência" }), h("img", { class: ctx === "essencia" ? "dim" : "", src: "img/logo-atlas.png", alt: "Atlas" }));
+  const logos = h("div", { class: "brand3", title: "Essária" }, h("img", { src: "img/icon-192.png", alt: "Essária" }), h("span", {}, "Essária"));
   const sw = h("div", { class: "semp" }, [["Essência", eid("essencia")], ["Atlas", eid("atlas")], ["Todas", ""]].map(([t, id]) => h("button", { class: (S.emp || "") === id ? "on" : "", onclick: () => setEmp(id) }, t)));
   const wide = ativo === "agenda";
   root.replaceChildren(h("div", { class: "app" },
@@ -160,18 +160,21 @@ async function agModal(a, def) {
 // ================= PACIENTES =================
 async function vPacientes(q) {
   const termo = q.get("q") || "", emp = q.has("e") ? q.get("e") : S.emp, pf = ehProf() ? "" : (q.get("p") || "");
-  const go = () => { const p = new URLSearchParams(); if (busca.value) p.set("q", busca.value); p.set("e", fe.value); if (fp && fp.value) p.set("p", fp.value); location.hash = "#/pacientes?" + p; };
+  const go = (e2) => { const p = new URLSearchParams(); if (busca.value) p.set("q", busca.value); p.set("e", e2 === undefined ? emp : e2); if (fp && fp.value) p.set("p", fp.value); location.hash = "#/pacientes?" + p; };
   const busca = h("input", { placeholder: "Buscar por nome…", value: termo, onkeydown: e => e.key === "Enter" && go(), style: "min-width:220px" });
-  const fe = sel([["", "Essência e Atlas"]].concat(S.emps.map(e => [e.id, e.nome])), emp, { style: "width:auto", onchange: () => { if (!fe.value) { S.emp = ""; } go(); } });
-  const fp = !ehProf() && sel([["", "Todos os profissionais"]].concat(S.profs.map(p => [p.id, p.nome])), pf, { style: "width:auto;max-width:240px", onchange: go });
+  const fp = !ehProf() && sel([["", "Todos os profissionais"]].concat(S.profs.filter(p => p.ativo).map(p => [p.id, p.nome])), pf, { style: "width:auto;max-width:240px", onchange: () => go() });
+  const abas = [["", "Todos"]].concat(S.emps.map(e => [e.id, e.nome]));
+  const conts = await Promise.all(abas.map(async ([id]) => { let qq = sb.from("pacientes").select("id", { count: "exact", head: true }).eq("ativo", true); if (id) qq = qq.eq("empresa_id", id); const r = await qq; return r.count || 0; }));
+  const seg = h("div", { class: "segp" }, abas.map(([id, t], k) => h("button", { class: "segp-" + (id ? (empCod(id) === "atlas" ? "a" : "e") : "t") + ((emp || "") === id ? " on" : ""), onclick: () => { S.emp = id; go(id); } }, t, h("span", {}, " " + conts[k]))));
   const pacs = await ok(sb.rpc("buscar_pacientes", { q: termo, lim: 80, emp: emp || null, prof: pf || null }));
   const vinc = pacs.length ? await ok(sb.from("paciente_profissional").select("paciente_id,profissional_id").in("paciente_id", pacs.map(p => p.id))) : [];
   const porPac = {}; vinc.forEach(v => (porPac[v.paciente_id] = porPac[v.paciente_id] || []).push(v.profissional_id));
+  const recentes = pacs.length ? await ok(sb.from("agendamentos").select("paciente_id").in("paciente_id", pacs.map(p => p.id)).in("status", ["cancelada_paciente", "cancelada_clinica"]).gte("inicio", new Date(Date.now() - 14 * 86400000).toISOString())) : [];
+  const comCanc = new Set(recentes.map(r => r.paciente_id));
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Pacientes"), ehGestao() && h("button", { class: "btn-p", onclick: () => pacModal(null) }, "+ Novo paciente")),
-    h("div", { class: "row", style: "margin-top:10px" }, busca, fe, fp, h("button", { onclick: go }, "Buscar"))),
-    h("div", { class: "card" }, pacs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Telefone", "Empresa", "Profissionais"].map(t => h("th", {}, t)))),
-      h("tbody", {}, pacs.map(p => h("tr", { class: "click", onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo")), h("td", {}, p.telefone || ""),
-        h("td", {}, h("span", { class: "chip " + (empCod(p.empresa_id) === "atlas" ? "atlas" : "") }, empCod(p.empresa_id) === "atlas" ? "Atlas" : "Essência")), h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
+    h("div", { class: "row", style: "margin-top:10px" }, seg), h("div", { class: "row", style: "margin-top:10px" }, busca, fp, h("button", { onclick: () => go() }, "Buscar"))),
+    h("div", { class: "card" }, pacs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Clínica", "Telefone", "Profissionais"].map(t => h("th", {}, t)))),
+      h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
       pacs.length >= 80 && h("div", { class: "small muted", style: "margin-top:8px" }, "Mostrando os 80 primeiros. Refine a busca.")));
 }
 function pacModal(p) {
@@ -200,9 +203,15 @@ async function vFicha(id, q) {
   if (!p) return vazio("Paciente não encontrado ou sem acesso.");
   const vinc = await ok(sb.from("paciente_profissional").select("*").eq("paciente_id", id));
   const abas = [["dados", "Dados"], ["consultas", "Consultas"]].concat(ehGestao() ? [["financeiro", "Pacotes e pagamentos"]] : []).concat([["prontuario", "Prontuário"], ["documentos", "Documentos"]]);
-  const cab = h("div", { class: "card" }, h("div", { class: "row" }, h("div", { class: "grow" }, h("h1", {}, p.nome, " ", h("span", { class: "chip " + (empCod(p.empresa_id) === "atlas" ? "atlas" : "") }, empCod(p.empresa_id) === "atlas" ? "Atlas" : "Essência"), !p.ativo && h("span", { class: "chip" }, "inativo")),
+  const cab = h("div", { class: "card ficha-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e") }, h("div", { class: "row" }, h("div", { class: "grow" }, h("h1", {}, p.nome, " ", empBadge(p.empresa_id), !p.ativo && h("span", { class: "chip" }, "inativo")),
     h("div", { class: "muted" }, [idade(p.nascimento), p.telefone, p.email].filter(Boolean).join(" · "))), ehGestao() && h("button", { onclick: () => pacModal(p) }, "Editar"),
     ehGestao() && h("button", { class: "btn-p", onclick: () => agModal(null, { paciente: p, profissional_id: (vinc.find(v => v.principal) || vinc[0] || {}).profissional_id }) }, "Agendar")));
+  const desde = new Date(Date.now() - 30 * 86400000).toISOString();
+  const canc = await ok(sb.from("agendamentos").select("id,inicio,status,profissional_id,servico:servicos(nome)").eq("paciente_id", id).in("status", ["cancelada_paciente", "cancelada_clinica"]).gte("inicio", desde).order("inicio", { ascending: false }).limit(10));
+  const aviso = canc.length ? h("div", { class: "card", style: "border-left:5px solid #c0562b;background:color-mix(in srgb,#c0562b 9%,var(--card))" },
+    h("h3", { style: "margin:0 0 6px" }, "⚠ Consulta cancelada" + (canc.length > 1 ? " (" + canc.length + ")" : "")),
+    canc.map(x => h("div", { class: "small", style: "padding:2px 0" }, h("b", {}, fmtData(x.inicio) + " às " + hhmm(x.inicio)), " · " + nomeCurto(profNome(x.profissional_id)) + (x.servico ? " · " + x.servico.nome : "") + " · ", h("span", { class: "chip " + x.status }, x.status === "cancelada_paciente" ? "cancelada pelo paciente" : "cancelada pela clínica")),
+    h("div", { class: "small muted", style: "margin-top:4px" }, "Aparecem aqui por 30 dias e não ocupam mais o calendário."))) : null;
   const tabs = h("div", { class: "tabs" }, abas.map(([k, t]) => h("button", { class: tab === k ? "on" : "", onclick: () => location.hash = "#/paciente/" + id + "?t=" + k }, t)));
   let corpo;
   if (tab === "dados") corpo = await tDados(p, vinc);
@@ -210,7 +219,7 @@ async function vFicha(id, q) {
   else if (tab === "financeiro" && ehGestao()) corpo = await tFinanceiro(p);
   else if (tab === "prontuario") corpo = await tProntuario(p);
   else corpo = await tDocumentos(p);
-  return h("div", {}, cab, tabs, corpo);
+  return h("div", {}, cab, aviso, tabs, corpo);
 }
 async function tDados(p, vinc) {
   const chips = vinc.map(v => h("span", { class: "chip" }, profNome(v.profissional_id), v.principal && " ★", ehGestao() && h("a", { href: "#", style: "margin-left:6px;text-decoration:none", title: "Remover vínculo", onclick: async e => { e.preventDefault(); if (!confirm("Remover vínculo com " + profNome(v.profissional_id) + "?")) return; await ok(sb.from("paciente_profissional").delete().eq("paciente_id", p.id).eq("profissional_id", v.profissional_id)); rota(); } }, "×")));
@@ -226,13 +235,17 @@ async function tConsultas(p) {
 async function tFinanceiro(p) {
   const [pcs, pgs, ags] = await Promise.all([ok(sb.from("pacotes").select("*").eq("paciente_id", p.id).order("numero", { ascending: false })), ok(sb.from("pagamentos").select("*").eq("paciente_id", p.id).order("pago_em", { ascending: false })),
     ok(sb.from("agendamentos").select("id,inicio,valor,status,pacote_id,profissional_id").eq("paciente_id", p.id).order("inicio", { ascending: false }).limit(400))]);
-  const usadas = {}; ags.forEach(a => { if (a.pacote_id && a.status === "realizada") usadas[a.pacote_id] = (usadas[a.pacote_id] || 0) + 1; });
+  const extra = await ok(sb.from("pacote_pacientes").select("pacote_id").eq("paciente_id", p.id));
+  if (extra.length) { const cp = await ok(sb.from("pacotes").select("*").in("id", extra.map(x => x.pacote_id))); cp.forEach(c => { c._comp = true; pcs.push(c); }); }
+  const usadas = {};
+  const doPacote = pcs.length ? await ok(sb.from("agendamentos").select("pacote_id").in("pacote_id", pcs.map(c => c.id)).eq("status", "realizada")) : [];
+  doPacote.forEach(a => { usadas[a.pacote_id] = (usadas[a.pacote_id] || 0) + 1; });
   const pagoSess = new Set(pgs.filter(x => x.agendamento_id).map(x => x.agendamento_id));
   const pend = ags.filter(a => !a.pacote_id && a.valor > 0 && ["realizada"].includes(a.status) && !pagoSess.has(a.id));
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h2", { class: "grow", style: "margin:0" }, "Pacotes"), h("button", { onclick: () => pctModal(p) }, "+ Novo pacote"), h("button", { class: "btn-p", onclick: () => pgModal(p, pcs, pend) }, "+ Registrar pagamento")),
     pcs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Nº", "Tipo", "Sessões", "Valor", "Pago", ""].map(t => h("th", {}, t)))), h("tbody", {}, pcs.map(c => {
       const dev = Number(c.valor) - Number(c.valor_pago);
-      return h("tr", {}, h("td", {}, "#" + c.numero), h("td", {}, c.tipo, h("div", { class: "small muted" }, nomeCurto(profNome(c.profissional_id)), " · ", c.vendido_em && fmtData(c.vendido_em + "T12:00:00-04:00"))), h("td", {}, (usadas[c.id] || 0) + "/" + c.sessoes_total + " realizadas"), h("td", {}, brl(c.valor)),
+      return h("tr", {}, h("td", {}, "#" + c.numero, c._comp && h("div", { class: "small muted" }, "compartilhado")), h("td", {}, c.tipo, h("div", { class: "small muted" }, nomeCurto(profNome(c.profissional_id)), " · ", c.vendido_em && fmtData(c.vendido_em + "T12:00:00-04:00"))), h("td", {}, (usadas[c.id] || 0) + "/" + c.sessoes_total + " realizadas"), h("td", {}, brl(c.valor)),
         h("td", {}, brl(c.valor_pago), " ", dev > 0.009 ? h("span", { class: "chip faltou" }, "falta " + brl(dev)) : h("span", { class: "chip realizada" }, "pago")), h("td", {}));
     }))) : vazio("Sem pacotes.")),
     pend.length > 0 && h("div", { class: "card" }, h("h2", {}, "Sessões avulsas realizadas sem pagamento"), pend.map(a => h("div", { class: "row", style: "padding:4px 0" }, fmtDataHora(a.inicio), " · ", nomeCurto(profNome(a.profissional_id)), " · ", brl(a.valor), h("span", { class: "grow" }), h("button", { class: "btn-s", onclick: () => pgModal(p, pcs, pend, a.id) }, "Receber")))),

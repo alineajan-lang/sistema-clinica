@@ -38,6 +38,8 @@
   const empTipo = p => { const c = empCods(p), e = c.includes("essencia"), a = c.includes("atlas"); return e && a ? "ea" : (a ? "a" : "e"); };
   const empRot = p => ({ e: "Essência", a: "Atlas", ea: "Essência + Atlas" }[empTipo(p)]);
   const etag = p => '<span class="etag ' + empTipo(p) + '">' + empRot(p) + "</span>";
+  const emk = c => '<i class="emk ' + (empDoCons(c) === "Atlas" ? "a" : "e") + '" title="' + empDoCons(c) + '">' + (empDoCons(c) === "Atlas" ? "A" : "E") + "</i>";
+  const tagEmp = id => { const at = (S.emps.find(e => e.id === id) || {}).codigo === "atlas"; return '<span class="etag ' + (at ? "a" : "e") + '">' + (at ? "Atlas" : "Essência") + "</span>"; };
   const empDoCons = c => (S.emps.find(e => e.id === c.empresaId) || {}).codigo === "atlas" ? "Atlas" : "Essência";
 
   // ---------- dados ----------
@@ -57,7 +59,7 @@
       ok(sb.from("bloqueios").select("*").lt("inicio", b).gt("fim", a).limit(3000))]);
     C.cons = ags.map(mapAg); C.blq = bl; C.range = [ini, fim];
   }
-  const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId));
+  const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId) && !CANC(c.status));
   function blqDia(b, d) {
     const ds = new Date(toISO(d, "00:00")).getTime(), de = ds + 86400000, s = new Date(b.inicio).getTime(), e = new Date(b.fim).getTime();
     if (e <= ds || s >= de) return null;
@@ -160,7 +162,7 @@
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
             else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
-            return '<div class="ev ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + inner + "</div>";
+            return '<div class="ev ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
           return '<div class="col' + (d === hoje ? " today" : "") + '" data-act="slot" data-d="' + d + '"' + (df.p ? ' data-p="' + esc(df.p.id) + '"' : "") + ' style="height:' + total + 'px">' + blHtml + evHtml + line + "</div>";
@@ -233,7 +235,7 @@
     q.addEventListener("input", () => { C.modal.pid = ""; clearTimeout(t); t = setTimeout(async () => {
       const txt = q.value.trim(); if (txt.length < 2) { sug.hidden = true; return; }
       const { data } = await sb.rpc("buscar_pacientes", { q: txt, lim: 8 }); C.sugs = data || [];
-      sug.innerHTML = C.sugs.map(p => '<button type="button" data-act="pickpat" data-id="' + esc(p.id) + '">' + esc(p.nome) + "</button>").join("") + (C.sugs.some(p => norm(p.nome) === norm(txt)) ? "" : '<button type="button" data-act="pickpat" data-id="">+ Cadastrar “' + esc(txt) + "” como novo</button>"); sug.hidden = !sug.innerHTML; }, 250); });
+      sug.innerHTML = C.sugs.map(p => '<button type="button" data-act="pickpat" data-id="' + esc(p.id) + '">' + esc(p.nome) + " " + tagEmp(p.empresa_id) + "</button>").join("") + (C.sugs.some(p => norm(p.nome) === norm(txt)) ? "" : '<button type="button" data-act="pickpat" data-id="">+ Cadastrar “' + esc(txt) + "” como novo</button>"); sug.hidden = !sug.innerHTML; }, 250); });
     $("fServ").addEventListener("change", () => { const s = servs.find(x => norm(x.nome) === norm($("fServ").value)); if (s && !c) { $("fValor").value = s.valor_padrao; if (s.duracao_min) $("fDur").value = s.duracao_min; } });
     ["fPro", "fData", "fHora", "fDur", "fSt"].forEach(i => $(i) && $(i).addEventListener("change", aviso));
     ["fValor"].forEach(i => $(i) && $(i).addEventListener("input", updPaySum));
@@ -269,7 +271,7 @@
       if (p.id) { const upd = Object.assign({}, base); if (p.data !== p.orig) upd.pago_em = new Date(p.data + "T12:00:00-04:00").toISOString(); await ok(sb.from("pagamentos").update(upd).eq("id", p.id)); }
       else await ok(sb.from("pagamentos").insert(Object.assign({ empresa_id: emp, paciente_id: pid, agendamento_id: aid, pago_em: new Date(p.data + "T" + (p.data === hojeISO() ? hhmm(new Date()) : "12:00") + ":00-04:00").toISOString() }, base)));
     }
-    C.anchor = val("fData"); toast("Salvo."); fecha(); await recarrega(true);
+    C.anchor = val("fData"); toast(CANC(st) ? "Consulta cancelada: saiu do calendário e ficou registrada na ficha do paciente." : "Salvo."); fecha(); await recarrega(true);
   }
   async function excluiCons() { if (!C.modal || !C.modal.id) return; if (!confirm("Excluir esta consulta definitivamente? (Para só cancelar, use a situação.)")) return;
     await ok(sb.from("pagamentos").delete().eq("agendamento_id", C.modal.id)); await ok(sb.from("agendamentos").delete().eq("id", C.modal.id)); toast("Consulta excluída."); fecha(); await recarrega(true); }
