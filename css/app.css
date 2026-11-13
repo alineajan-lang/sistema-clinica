@@ -75,7 +75,7 @@ body[data-emp=atlas]{--verde:#997d48;--verde-esc:#7a6236;--verde-cl:#f1ead9;--ro
   table.stack thead{display:none}
   table.stack,table.stack tbody{display:block}
   table.stack tr{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--bd)}
-  table.stack td{border:0;padding:0;display:block}
+  table.stack td{border:0;padding:0;display:block;background:transparent!important}
   table.stack td:first-child{flex:1 0 100%;font-size:16px}
   .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
   .tabs button{white-space:nowrap;flex:none;min-height:46px}
