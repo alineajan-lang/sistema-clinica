@@ -259,7 +259,7 @@ button,a,.stab,.col,.dh,.tr.click,tr.click,.minigrid button,.ev,.bl{touch-action
   .strip{font-size:12px}
 
   /* grade: colunas largas com rolagem lateral, hora fixa à esquerda */
-  .calwrap{max-height:none;height:calc(100dvh - 330px);min-height:360px;scroll-snap-type:x proximity;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:12px}
+  .calwrap{max-height:none;height:calc(100dvh - 330px);min-height:360px;scroll-snap-type:x proximity;scroll-padding-left:42px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:12px}
   .dh,.col{scroll-snap-align:start}
   .gutter{position:sticky;left:0;z-index:6;background:var(--surface)}
   .calhead>div:first-child{position:sticky;left:0;z-index:7;background:var(--surface)}
