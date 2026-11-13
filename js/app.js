@@ -19,20 +19,38 @@ function boasVindas(card) {
       h("div", { class: "brand b2" }, h("img", { src: "img/logo-atlas.png", alt: "Clínica Atlas" }), h("p", {}, "Clínica Atlas"))),
     h("div", { class: "wl-body" }, h("div", { class: "wl-card" }, card), h("p", { class: "small", style: "text-align:center;color:#8a8577;margin-top:16px" }, "Acesso restrito à equipe"))));
 }
+// ================= ACESSOS (login do profissional = nome; senha provisória = nome + 2026) =================
+const DOMINIO_LOGIN = "acesso.invalid"; // domínio reservado: nenhum e-mail é entregue
+const emailDeLogin = v => { v = (v || "").trim(); return v.includes("@") ? v : semAcento(v).replace(/\s+/g, "") + "@" + DOMINIO_LOGIN; };
+const COMPOSTOS = ["ana barbara", "ana cristina", "ana beatriz", "ana paula", "luis filipe", "juliana carolina"];
+function regraAcesso(nome) {
+  const ts = semAcento(nome).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w && !["de", "da", "do", "dos", "das", "e", "dra", "dr"].includes(w));
+  if (!ts.length) return { login: "", senha: "" };
+  if (ts.length > 1 && COMPOSTOS.includes(ts[0] + " " + ts[1])) return { login: ts[0] + "-" + ts[1], senha: ts[0] + ts[1] + "2026" };
+  const sob = ts[0] === "angela" ? "gomes" : ts[ts.length - 1];
+  return { login: ts[0] + (ts.length > 1 ? "-" + sob : ""), senha: ts[0] + "2026" };
+}
+async function acessoApi(body) {
+  const { data, error } = await sb.functions.invoke("admin-usuarios", { body });
+  if (error) { let m = error.message; try { const j = await error.context.json(); m = j.erro || m; } catch (e) {} throw new Error(m); }
+  if (data && data.erro) throw new Error(data.erro);
+  return data;
+}
 // ================= LOGIN =================
 function telaLogin(msg) {
-  const em = h("input", { type: "email", placeholder: "E-mail", autocomplete: "username" });
+  const em = h("input", { type: "text", placeholder: "E-mail ou login", autocomplete: "username", autocapitalize: "none", spellcheck: "false" });
   const pw = h("input", { type: "password", placeholder: "Senha", autocomplete: "current-password" });
   const err = h("div", { class: "warn", style: "display:none" });
   const entrar = async () => {
     err.style.display = "none";
-    const { error } = await sb.auth.signInWithPassword({ email: em.value.trim(), password: pw.value });
-    if (error) { err.textContent = "E-mail ou senha incorretos."; err.style.display = ""; }
+    const { error } = await sb.auth.signInWithPassword({ email: emailDeLogin(em.value), password: pw.value });
+    if (error) { err.textContent = "Login ou senha incorretos."; err.style.display = ""; }
   };
   pw.addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
-  boasVindas(h("div", {}, h("h2", {}, "Entrar"), msg && h("div", { class: "warn" }, msg), campo("E-mail", em), campo("Senha", pw), err,
+  boasVindas(h("div", {}, h("h2", {}, "Entrar"), msg && h("div", { class: "warn" }, msg), campo("E-mail ou login", em), campo("Senha", pw), err,
       h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn-p grow", onclick: entrar }, "Entrar")),
       h("p", { class: "small muted", style: "margin:12px 0 0" }, h("a", { href: "#", onclick: async e => { e.preventDefault(); if (!em.value.trim()) return toast("Digite seu e-mail acima.", true);
+        if (!em.value.includes("@")) return toast("Profissionais: peça à administração para redefinir a sua senha.", true);
         const { error } = await sb.auth.resetPasswordForEmail(em.value.trim(), { redirectTo: location.origin + location.pathname }); toast(error ? error.message : "Enviamos um link para redefinir a senha, se o e-mail existir.", !!error); } }, "Esqueci minha senha"))));
 }
 function telaNovaSenha() {
@@ -40,7 +58,8 @@ function telaNovaSenha() {
   boasVindas(h("div", {}, h("h2", {}, "Definir nova senha"), campo("Nova senha", a),
     h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn-p grow", onclick: async () => {
       if (a.value.length < 8) return toast("Use pelo menos 8 caracteres.", true);
-      const { error } = await sb.auth.updateUser({ password: a.value }); if (error) return toast(error.message, true);
+      if (/2026$/.test(a.value)) return toast("Escolha uma senha diferente da provisória (não termine em 2026).", true);
+      const { error } = await sb.auth.updateUser({ password: a.value, data: { trocar_senha: false } }); if (error) return toast(error.message, true);
       toast("Senha alterada."); RECUPERANDO = false; history.replaceState(null, "", location.pathname + "#/agenda"); iniciar(); } }, "Salvar"))));
 }
 
@@ -49,7 +68,7 @@ async function carregarBase() {
   const { data: { user } } = await sb.auth.getUser();
   const { data: perfil } = await sb.from("perfis").select("*").eq("id", user.id).maybeSingle();
   if (!perfil || !perfil.ativo) { await sb.auth.signOut(); return telaLogin("Seu usuário ainda não tem acesso ao sistema. Fale com a administração."); }
-  S.perfil = perfil;
+  S.perfil = perfil; S.trocar = !!(user.user_metadata && user.user_metadata.trocar_senha);
   [S.profs, S.emps, S.servs] = await Promise.all([ok(sb.from("profissionais").select("*").order("nome")), ok(sb.from("empresas").select("*")), ok(sb.from("servicos").select("*").order("nome"))]);
   return true;
 }
@@ -91,7 +110,7 @@ async function rota() {
 async function iniciar() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return telaLogin();
-  if (await carregarBase() === true) rota();
+  if (await carregarBase() === true) { if (S.trocar) { RECUPERANDO = true; return telaNovaSenha(); } rota(); }
 }
 let RECUPERANDO = /type=recovery/.test(location.hash + location.search);
 sb.auth.onAuthStateChange((ev) => {
@@ -282,21 +301,56 @@ async function tDocumentos(p) {
 async function vProfissionais() {
   const todos = await ok(sb.from("profissionais").select("*").order("ativo", { ascending: false }).order("nome"));
   S.profs = todos; const lista = todos.filter(atendeEm);
-  return h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Profissionais"), ehAdmin() && h("button", { class: "btn-p", onclick: () => profModal(null) }, "+ Novo profissional")),
-    h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Área", "Atende em", "Registro", "Repasse", ""].map(t => h("th", {}, t)))), h("tbody", {}, lista.map(x => h("tr", { class: "click", onclick: () => ehAdmin() && profModal(x) },
-      h("td", {}, h("b", {}, x.nome), !x.ativo && h("span", { class: "chip" }, "inativo")), h("td", {}, x.area), h("td", {}, (x.empresas || []).map(id => h("span", { class: "chip " + (empCod(id) === "atlas" ? "atlas" : "") }, empCod(id) === "atlas" ? "Atlas" : "Essência"))),
+  const perfis = ehAdmin() ? await ok(sb.from("perfis").select("profissional_id,login,ativo").not("profissional_id", "is", null)) : [];
+  S.acessos = Object.fromEntries(perfis.map(p => [p.profissional_id, p]));
+  return h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Profissionais"), ehAdmin() && h("button", { onclick: () => criarTodosAcessos(lista) }, "Criar acessos de todos"), ehAdmin() && h("button", { class: "btn-p", onclick: () => profModal(null) }, "+ Novo profissional")),
+    h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Área", "Atende em", "Registro", "Acesso", ""].map(t => h("th", {}, t)))), h("tbody", {}, lista.map(x => { const ac = S.acessos[x.id]; return h("tr", { class: "click", onclick: () => ehAdmin() && profModal(x) },
+      h("td", {}, h("b", {}, x.nome), !x.ativo && h("span", { class: "chip" }, "inativo")), h("td", {}, x.area),
+      h("td", {}, (x.empresas || []).map(id => h("span", { class: "chip " + (empCod(id) === "atlas" ? "atlas" : "") }, empCod(id) === "atlas" ? "Atlas" : "Essência"))),
       h("td", {}, x.registro ? h("span", {}, x.conselho + " " + x.registro, x.rqe && " · RQE " + x.rqe) : h("span", { class: "chip faltou" }, "sem registro")),
-      h("td", { class: "small" }, x.repasse_tipo === "percentual" ? x.repasse_valor + "%" : x.repasse_tipo === "fixo" ? brl(x.repasse_valor) : "—"), h("td", { class: "small muted" }, x.pode_prescrever ? "prescreve" : ""))))),
-    !ehAdmin() && h("div", { class: "small muted", style: "margin-top:8px" }, "Somente o administrador edita profissionais."));
+      h("td", { class: "small" }, ac ? h("span", { class: "chip " + (ac.ativo ? "realizada" : "") }, ac.login || "acesso", !ac.ativo && " (desativado)") : h("span", { class: "chip" }, "sem acesso")),
+      h("td", { class: "small muted" }, x.pode_prescrever ? "prescreve" : "")); }))),
+    !ehAdmin() && h("div", { class: "small muted", style: "margin-top:8px" }, "Somente o administrador edita profissionais e acessos."));
+}
+function mostraCredenciais(linhas) {
+  const txt = linhas.map(l => l.nome + " — login: " + l.login + " — senha provisória: " + l.senha).join("\n");
+  modal("Dados de acesso", h("div", {}, h("div", { class: "warn" }, "No primeiro acesso cada pessoa é obrigada a trocar a senha. Entregue estes dados só à própria pessoa."),
+    h("table", {}, h("thead", {}, h("tr", {}, ["Profissional", "Login", "Senha provisória"].map(t => h("th", {}, t)))), h("tbody", {}, linhas.map(l => h("tr", {}, h("td", {}, l.nome), h("td", {}, h("b", {}, l.login)), h("td", {}, l.senha)))))),
+    [{ t: "Copiar tudo", f: async () => { try { await navigator.clipboard.writeText(txt); toast("Copiado."); } catch (e) { toast("Não consegui copiar.", true); } return false; } }, { t: "Fechar", p: true }], "720px");
+}
+async function criarAcesso(x) {
+  const r = regraAcesso(x.nome); if (!r.login) throw new Error("Nome inválido.");
+  const res = await acessoApi({ acao: "criar", login: r.login, senha: r.senha, profissional_id: x.id, nome: x.nome });
+  return Object.assign({ nome: x.nome, ac: res.acao }, r);
+}
+async function criarTodosAcessos(lista) {
+  const alvo = lista.filter(x => x.ativo && !(S.acessos && S.acessos[x.id]));
+  if (!alvo.length) return toast("Todos os profissionais ativos já têm acesso.");
+  if (!confirm("Criar acesso para " + alvo.length + " profissional(is) ativo(s)?\nLogin = nome; senha provisória = nome + 2026 (troca obrigatória no 1º acesso).")) return;
+  const feitos = [], falhas = [];
+  for (const x of alvo) { try { feitos.push(await criarAcesso(x)); } catch (e) { falhas.push(x.nome + ": " + e.message); } }
+  if (falhas.length) toast("Falharam: " + falhas.join(" | "), true);
+  rota(); if (feitos.length) mostraCredenciais(feitos);
 }
 function profModal(x) {
   const f = { nome: h("input", { value: x ? x.nome : "" }), area: h("input", { value: x ? x.area : "Psicologia" }), con: h("input", { value: x && x.conselho || "", placeholder: "CRP, CRM, CRN, CREFITO…" }), reg: h("input", { value: x && x.registro || "" }), rqe: h("input", { value: x && x.rqe || "" }),
     email: h("input", { value: x && x.email || "" }), tel: h("input", { value: x && x.telefone || "" }), pr: h("input", { type: "checkbox", checked: x ? x.pode_prescrever : false }), at: h("input", { type: "checkbox", checked: x ? x.ativo : true }),
     rt: sel([["nenhum", "Sem repasse"], ["percentual", "Percentual"], ["fixo", "Valor fixo"]], x ? x.repasse_tipo : "nenhum"), rv: h("input", { type: "number", step: "0.01", value: x ? x.repasse_valor : 0 }) };
   modal(x ? "Editar profissional" : "Novo profissional", h("div", {}, campo("Nome", f.nome), h("div", { class: "g2" }, campo("Área", f.area), campo("Conselho", f.con)), h("div", { class: "g2" }, campo("Número do registro", f.reg), campo("RQE (médicos)", f.rqe)),
-    h("div", { class: "g2" }, campo("E-mail", f.email), campo("Telefone", f.tel)), h("div", { class: "g2" }, campo("Repasse", f.rt), campo("Valor / %", f.rv)), h("div", { class: "row", style: "margin-top:10px" }, h("label", {}, f.pr, " Pode emitir receituário"), h("label", {}, f.at, " Ativo"))),
+    h("div", { class: "g2" }, campo("E-mail", f.email), campo("Telefone", f.tel)), h("div", { class: "g2" }, campo("Repasse", f.rt), campo("Valor / %", f.rv)), h("div", { class: "row", style: "margin-top:10px" }, h("label", {}, f.pr, " Pode emitir receituário"), h("label", {}, f.at, " Ativo")),
+    x && acessoBloco(x)),
     [{ t: "Cancelar" }, { t: "Salvar", p: true, f: async () => {
       const row = { nome: f.nome.value.trim(), area: f.area.value.trim(), conselho: f.con.value || null, registro: f.reg.value || null, rqe: f.rqe.value || null, email: f.email.value || null, telefone: f.tel.value || null, pode_prescrever: f.pr.checked, ativo: f.at.checked, repasse_tipo: f.rt.value, repasse_valor: Number(f.rv.value || 0) };
       if (!row.nome) { toast("Informe o nome.", true); return false; }
       await ok(x ? sb.from("profissionais").update(row).eq("id", x.id) : sb.from("profissionais").insert(row)); toast("Salvo."); rota(); } }]);
+}
+
+function acessoBloco(x) {
+  const r = regraAcesso(x.nome), ac = (S.acessos || {})[x.id];
+  return h("div", { class: "card", style: "margin-top:14px;background:var(--verde-cl)" }, h("h3", {}, "Acesso ao sistema"),
+    h("div", { class: "small" }, ac ? ["Login: ", h("b", {}, ac.login), ac.ativo ? "" : " (desativado)"] : ["Sem acesso ainda. Será criado com login ", h("b", {}, r.login), " e senha provisória ", h("b", {}, r.senha), "."]),
+    h("div", { class: "row", style: "margin-top:8px" },
+      !ac && h("button", { class: "btn-s btn-p", onclick: async () => { try { const c = await criarAcesso(x); toast("Acesso criado."); rota(); mostraCredenciais([c]); } catch (e) { toast(e.message, true); } } }, "Criar acesso"),
+      ac && h("button", { class: "btn-s", onclick: async () => { if (!confirm("Redefinir a senha de " + x.nome + " para a provisória (" + r.senha + ")? Ela terá de trocar no próximo acesso.")) return; try { await acessoApi({ acao: "redefinir", profissional_id: x.id, senha: r.senha }); toast("Senha redefinida."); mostraCredenciais([{ nome: x.nome, login: ac.login, senha: r.senha }]); } catch (e) { toast(e.message, true); } } }, "Redefinir senha"),
+      ac && ac.ativo && h("button", { class: "btn-s btn-d", onclick: async () => { if (!confirm("Desativar o acesso de " + x.nome + "?")) return; try { await acessoApi({ acao: "desativar", profissional_id: x.id }); toast("Acesso desativado."); rota(); } catch (e) { toast(e.message, true); } } }, "Desativar acesso")));
 }
