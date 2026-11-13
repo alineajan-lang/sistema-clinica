@@ -131,6 +131,7 @@
     geral: "Relatório médico para os devidos fins.\n\nMotivo da consulta:\n\nHistória clínica:\n\nAchados do exame:\n\nDiagnóstico ou hipótese diagnóstica:\n\nTratamento e conduta:\n\nConclusão:"
   };
   const norm = s => semAcento(s || "");
+  const dbr2 = iso => String(iso || "").split("-").reverse().join("/");
   const ehMedico = pr => !!(pr && pr.pode_prescrever);
   function tiposDisponiveis(ctx, pr) {
     if (ctx.gestao) return [["declaracao", "Declaração de comparecimento"], ["encaminhamento", "Encaminhamento"], ["recibo", "Recibo"]];
@@ -182,7 +183,7 @@
         const r = D.recibo = D.recibo || { pagador: p.nome, cpf: p.cpf || "", valor: "", forma: "pix", dataPag: hojeISO(), sel: [], obs: "" };
         const elegiveis = consAtivas.filter(c => c.status !== "faltou");
         h += '<div class="two"><div class="field"><label for="rcNome">Nome do pagador (pode ser diferente do paciente)</label><input id="rcNome" type="text" value="' + E(r.pagador) + '"></div><div class="field"><label for="rcCpf">CPF do pagador</label><input id="rcCpf" type="text" inputmode="numeric" placeholder="000.000.000-00" value="' + E(r.cpf) + '"></div></div>';
-        h += '<div class="lbl" style="margin-top:6px">Sessões cobertas por este valor (marque as datas)</div><div class="sect" style="max-height:260px;overflow:auto">' + (elegiveis.length ? elegiveis.map(c => '<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-ses="' + E(c.id) + '"' + (r.sel.includes(c.id) ? " checked" : "") + '> <span><b>' + E(fmtData(c.inicio)) + "</b> às " + E(hhmm(c.inicio)) + " · " + E(c.servico ? c.servico.nome : "") + " · " + E(profNome(c.profissional_id)) + " · " + E(brl(c.valor)) + " · " + E(STATUS[c.status] || c.status) + ((c.pagamentos || []).length ? " · pago" : "") + "</span></label>").join("") : '<div class="muted">Este paciente não tem sessões lançadas.</div>') + "</div>";
+        h += '<div class="lbl" style="margin-top:6px">Sessões cobertas por este valor (marque as datas)</div><div class="sect" style="max-height:260px;overflow:auto">' + (elegiveis.length ? elegiveis.map(c => '<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-ses="' + E(c.id) + '"' + (r.sel.includes(c.id) ? " checked" : "") + '> <span><b>' + E(fmtData(c.inicio)) + "</b> às " + E(hhmm(c.inicio)) + " · " + (c.servico ? "<b>" + E(c.servico.nome) + "</b>" : '<span class="chip faltou">sem serviço no agendamento</span>') + " · " + E(profNome(c.profissional_id)) + " · " + E(brl(c.valor)) + " · " + E(STATUS[c.status] || c.status) + ((c.pagamentos || []).length ? " · pago" : "") + "</span></label>").join("") : '<div class="muted">Este paciente não tem sessões lançadas.</div>') + "</div>";
         h += '<div class="three"><div class="field"><label for="rcValor">Valor recebido (R$)</label><input id="rcValor" type="number" step="0.01" value="' + E(r.valor) + '"></div><div class="field"><label for="rcForma">Forma de pagamento</label><select id="rcForma">' + Object.entries(FORMAS).map(([k, t]) => opt(t, t, FORMAS[r.forma] === t || r.forma === t)).join("") + '</select></div><div class="field"><label for="rcData">Data do pagamento</label><input id="rcData" type="date" value="' + E(r.dataPag) + '"></div></div><div class="field"><label for="rcObs">Observações (opcional)</label><input id="rcObs" type="text" value="' + E(r.obs) + '"></div><div class="note">O profissional que fez o atendimento é escolhido acima; o recibo mostra o nome e o registro dele, o pagador e as datas das sessões.</div>';
       } else if (D.tipo === "risco") {
         const rc = D.rc || {}, lee = rc.lee || [], sl = (id, rot, arr, cur) => '<div class="field"><label for="' + id + '">' + rot + '</label><select id="' + id + '">' + opt("", "Escolher…") + arr.map(x => opt(x, x, cur === x)).join("") + "</select></div>", ta = (id, rot, v, hh) => '<div class="field"><label for="' + id + '">' + rot + '</label><textarea id="' + id + '" style="min-height:' + (hh || 70) + 'px">' + E(v || "") + "</textarea></div>";
@@ -217,12 +218,13 @@
       if (d.tipo === "recibo") {
         const r = d.recibo || {}, ses = consultas.filter(c => (r.sel || []).includes(c.id)).sort((a, b) => new Date(a.inicio) - new Date(b.inicio)), valor = Number(r.valor) || 0;
         if (!ses.length) throw new Error("Marque ao menos uma sessão coberta pelo recibo."); if (!(valor > 0)) throw new Error("Informe o valor recebido."); if (!String(r.pagador || "").trim()) throw new Error("Informe o nome do pagador.");
-        doc.recibo = { pagador: { nome: r.pagador, cpf: r.cpf }, valor, extenso: extenso(valor), forma: r.forma, dataPag: r.dataPag, sessoes: ses.map(c => ({ data: diaDe(c.inicio), hora: hhmm(c.inicio), servico: c.servico ? c.servico.nome : "" })), servico: [...new Set(ses.map(c => c.servico && c.servico.nome).filter(Boolean))].join(" / "), obs: r.obs };
+        doc.recibo = { pagador: { nome: r.pagador, cpf: r.cpf }, valor, extenso: extenso(valor), forma: r.forma, dataPag: r.dataPag, sessoes: ses.map(c => ({ data: diaDe(c.inicio), hora: hhmm(c.inicio), servico: c.servico ? c.servico.nome : "" })), servico: [...new Set(ses.map(c => c.servico && c.servico.nome).filter(Boolean))].join(" / "), servicos: Object.entries(ses.reduce((m, c) => { const n = c.servico ? c.servico.nome : "serviço não informado"; m[n] = (m[n] || 0) + 1; return m; }, {})).map(([nome, qtd]) => ({ nome, qtd })), obs: r.obs };
       }
       return doc;
     }
     function valida(doc) {
       if (doc.tipo !== "recibo" && !doc.pro.registro) throw new Error("O profissional não tem registro cadastrado (CRP/CRM/CRN…). Peça à administração para preencher em Profissionais.");
+      if (doc.tipo === "recibo") { const sem = (doc.recibo.sessoes || []).filter(s => !s.servico); if (sem.length) throw new Error("Falta o serviço no agendamento de " + sem.map(s => dbr2(s.data)).join(", ") + ". Abra o agendamento na Agenda, informe o serviço e emita o recibo de novo."); }
       if (doc.tipo === "receita" && !doc.itens.length) throw new Error("Informe ao menos um medicamento.");
       if (doc.tipo === "exames" && !String(doc.exames).trim()) throw new Error("Informe ao menos um exame.");
       if (doc.tipo === "relatorio" && !String(doc.rel).trim()) throw new Error("Escreva o relatório.");

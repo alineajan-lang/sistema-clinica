@@ -69,8 +69,9 @@ window.PDFDOC = (function () {
         y += 2; fonte("Mulish", "normal", 11.5, T.tinta); doc.splitTextToSize(txt, LW).forEach(l => { garante(7); doc.text(l, ML, y); y += linhaH(11.5) + 1; }); y += 4;
         bloco("Pagador", (rc.pagador && rc.pagador.nome || "—") + (rc.pagador && rc.pagador.cpf ? "  ·  CPF " + rc.pagador.cpf : ""));
         bloco("Valor recebido", "R$ " + Number(rc.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) + " (" + (rc.extenso || "") + ")" + (rc.forma ? "  ·  " + rc.forma : "") + (rc.dataPag ? "  ·  em " + dbr(rc.dataPag) : ""));
+        if ((rc.servicos || []).length) bloco(rc.servicos.length > 1 ? "Serviços agendados" : "Serviço agendado", rc.servicos.map(s => s.nome + (s.qtd > 1 ? "  ×  " + s.qtd + " sessões" : "")).join("\n"));
         bloco("Profissional responsável pelo atendimento", (d.pro.nome || "") + (d.pro.registro ? "  ·  " + [d.pro.area, d.pro.registro].filter(Boolean).join(" · ") : ""));
-        if (ses.length) { garante(14); rotulo("Sessões cobertas por este valor (" + n + ")", ML, y); y += 5.5; ses.forEach(s => { garante(6); fonte("Mulish", "normal", 10.2, T.tinta); doc.text("•  " + dbr(s.data) + (s.hora ? " às " + s.hora : "") + (s.servico ? "  —  " + s.servico : ""), ML + 2, y); y += linhaH(10.2) + 0.6; }); y += 3; }
+        if (ses.length) { garante(14); rotulo("Sessões cobertas por este valor (" + n + ")", ML, y); y += 5.5; ses.forEach(s => { garante(6); fonte("Mulish", "normal", 10.2, T.tinta); doc.text("•  " + dbr(s.data) + (s.hora ? " às " + s.hora : "") + "  —  " + (s.servico || "serviço não informado"), ML + 2, y); y += linhaH(10.2) + 0.6; }); y += 3; }
         bloco("Observações", rc.obs);
       } else if (d.tipo === "encaminhamento") {
         y += 2; fonte("Mulish", "normal", 11.5, T.tinta); const t1 = "Encaminho o(a) paciente " + (d.pac.nome || "") + " para avaliação e conduta em " + (d.enc.para || "—") + (d.enc.dest ? ", aos cuidados de " + d.enc.dest : "") + "."; doc.splitTextToSize(t1, LW).forEach(l => { garante(7); doc.text(l, ML, y); y += linhaH(11.5) + 1; }); y += 4;
