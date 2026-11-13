@@ -182,7 +182,7 @@
       let defs;
       if (C.view === "prof" && !mobile) {
         const base = S.profs.filter(p => p.ativo && visP(p.id) && (atendeEm(p) || cons.some(c => c.profissionalId === p.id)));
-        const com = base.filter(p => cons.some(c => c.profissionalId === p.id));
+        const com = base.filter(p => cons.some(c => c.profissionalId === p.id) || C.blq.some(b => b.profissional_id === p.id && blqDia(b, days[0])));
         defs = ((C.allCols || !com.length) ? base : com).map(p => ({ d: days[0], p }));
       } else defs = days.map(d => ({ d, p: null }));
       if (!defs.length) corpo = '<div class="empty"><b>Nenhuma agenda marcada.</b><br>Marque ao menos um profissional em <b>Agendas</b>.</div>';
@@ -197,10 +197,17 @@
         const unico = profsAtivos().filter(p => visP(p.id)).length === 1 ? profsAtivos().find(p => visP(p.id)).id : null;
         const cols = defs.map(df => {
           const d = df.d, evs = layoutDay(cons.filter(c => c.data === d && (!df.p || c.profissionalId === df.p.id))), vistos = {};
-          const blHtml = C.blq.filter(b => df.p ? b.profissional_id === df.p.id : (unico && b.profissional_id === unico)).map(b => {
-            const r = blqDia(b, d); if (!r) return ""; const a0 = Math.max(r.a, HSTART * 60), z0 = Math.min(r.b, HEND * 60); if (z0 <= a0) return "";
+          const blLista = [], grB = {};
+          C.blq.filter(b => df.p ? b.profissional_id === df.p.id : (visP(b.profissional_id) && profAtivo(b.profissional_id))).forEach(b => {
+            const r = blqDia(b, d); if (!r) return;
+            if (df.p) { blLista.push({ b, r, n: 1 }); return; }
+            const key = r.a + "|" + r.b + "|" + (b.comentario || ""); if (grB[key]) { grB[key].n++; return; } grB[key] = { b, r, n: 1 }; blLista.push(grB[key]);
+          });
+          const blHtml = blLista.map(({ b, r, n }) => {
+            const a0 = Math.max(r.a, HSTART * 60), z0 = Math.min(r.b, HEND * 60); if (z0 <= a0) return "";
             const faixa = (r.a === 0 && r.b === 1440) ? "Dia todo" : (fromMin(r.a) + " - " + fromMin(r.b));
-            return '<div class="bl" data-act="blq" data-id="' + esc(b.id) + '" style="top:' + ((a0 - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(22, (z0 - a0) / 60 * HH - 2) + 'px" title="' + esc(ehProf() ? "Horário bloqueado" : (b.comentario || "Bloqueio")) + '"><span class="blh">🔒 ' + faixa + "</span><b>" + esc(ehProf() ? "Horário bloqueado" : (b.comentario || "Bloqueio")) + "</b></div>";
+            const rot = ehProf() ? "Horário bloqueado" : ((b.comentario || "Bloqueio") + (!df.p ? (n > 1 ? " · " + n + " agendas" : " · " + nomeC(proNome(b.profissional_id))) : ""));
+            return '<div class="bl" data-act="blq" data-id="' + esc(b.id) + '" style="top:' + ((a0 - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(22, (z0 - a0) / 60 * HH - 2) + 'px" title="' + esc(rot) + '"><span class="blh">🔒 ' + faixa + "</span><b>" + esc(rot) + "</b></div>";
           }).join("");
           const evHtml = evs.map(e => {
             if (C.view === "semana" && e._n >= 4) { if (vistos[e._cs]) return ""; vistos[e._cs] = 1; const grp = evs.filter(x => x._cs === e._cs).sort((x, y) => toMin(x.hora) - toMin(y.hora)), nomes = [...new Set(grp.map(x => String(proNome(x.profissionalId)).split(" ")[0]))]; return '<div class="ev many" data-act="goday" data-d="' + d + '" style="--c:var(--accent);top:' + ((e._cs - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(58, (e._ce - e._cs) / 60 * HH - 2) + 'px;left:1px;width:calc(100% - 3px)" title="' + esc(grp.map(x => x.hora + " · " + proNome(x.profissionalId) + " · " + x.pacienteNome).join("\n")) + '"><b class="evn">' + e._cn + ' atendimentos</b><span class="evm" style="max-height:none"><span>' + esc(nomes.join(", ")) + '</span></span><span class="evm" style="max-height:none;font-weight:700"><span>clique: ver por profissional</span></span></div>'; }

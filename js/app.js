@@ -226,7 +226,22 @@ async function tDados(p, vinc) {
   const chips = vinc.map(v => h("span", { class: "chip" }, profNome(v.profissional_id), v.principal && " ★", ehGestao() && h("a", { href: "#", style: "margin-left:6px;text-decoration:none", title: "Remover vínculo", onclick: async e => { e.preventDefault(); if (!confirm("Remover vínculo com " + profNome(v.profissional_id) + "?")) return; await ok(sb.from("paciente_profissional").delete().eq("paciente_id", p.id).eq("profissional_id", v.profissional_id)); rota(); } }, "×")));
   const add = ehGestao() && sel([["", "+ vincular profissional"]].concat(S.profs.filter(x => x.ativo && !vinc.some(v => v.profissional_id === x.id)).map(x => [x.id, x.nome])), "", { style: "width:auto;max-width:260px", onchange: async e => { if (!e.target.value) return; await ok(sb.from("paciente_profissional").insert({ paciente_id: p.id, profissional_id: e.target.value, principal: !vinc.length })); rota(); } });
   const kv = [["CPF", p.cpf], ["Nascimento", p.nascimento && fmtData(p.nascimento + "T12:00:00-04:00")], ["Sexo", p.sexo], ["Responsável", p.responsavel], ["Como nos conheceu", p.origem], ["Parceria", p.parceria], ["Observações", p.observacoes]].filter(x => x[1]);
-  return h("div", { class: "card" }, ehGestao() && h("h2", {}, "Profissionais que atendem"), ehGestao() && h("div", { class: "row" }, chips, add), h("h2", { style: ehGestao() ? "margin-top:18px" : "" }, "Dados cadastrais"), h("div", { class: "kv" }, kv.map(([k, v]) => [h("div", {}, k), h("div", {}, v)])));
+  const atual = empCod(p.empresa_id) === "atlas" ? "atlas" : "essencia", outra = atual === "atlas" ? "essencia" : "atlas", nomeEmp = c => c === "atlas" ? "Atlas" : "Essência";
+  const esc0 = sel([["futuras", "Só as consultas futuras"], ["tudo", "Todo o histórico (consultas, pacotes e pagamentos)"]], "futuras", { style: "width:auto;max-width:340px" });
+  const mudaEmp = ehGestao() && h("div", { class: "card" }, h("h2", {}, "Clínica do paciente"),
+    h("div", { class: "muted small", style: "margin-bottom:8px" }, "Hoje é paciente da " + nomeEmp(atual) + ". Se ele passar para a " + nomeEmp(outra) + ", mude aqui: não precisa excluir nem recadastrar, e o prontuário, os anexos e as anotações continuam."),
+    h("div", { class: "row" }, esc0, h("button", { class: "btn-p", onclick: async () => {
+      const dest = S.emps.find(e => e.codigo === outra); if (!dest) return toast("Clínica de destino não encontrada.", true);
+      const todo = esc0.value === "tudo";
+      if (!confirm("Passar " + p.nome + " para a Clínica " + nomeEmp(outra) + (todo ? ", com todo o histórico (consultas, pacotes e pagamentos)?" : " (as consultas futuras vão junto; o histórico fica como está)?"))) return;
+      try {
+        await ok(sb.from("pacientes").update({ empresa_id: dest.id }).eq("id", p.id));
+        let q = sb.from("agendamentos").update({ empresa_id: dest.id }).eq("paciente_id", p.id).eq("empresa_id", p.empresa_id); if (!todo) q = q.gte("inicio", new Date().toISOString()); await ok(q);
+        if (todo) { await ok(sb.from("pacotes").update({ empresa_id: dest.id }).eq("paciente_id", p.id).eq("empresa_id", p.empresa_id)); await ok(sb.from("pagamentos").update({ empresa_id: dest.id }).eq("paciente_id", p.id).eq("empresa_id", p.empresa_id)); }
+        toast("Paciente passou para a Clínica " + nomeEmp(outra) + "."); rota();
+      } catch (e) { toast("Não foi possível mudar de clínica: " + (e && e.message ? e.message : e), true); }
+    } }, "Passar para a " + nomeEmp(outra))));
+  return h("div", {}, h("div", { class: "card" }, ehGestao() && h("h2", {}, "Profissionais que atendem"), ehGestao() && h("div", { class: "row" }, chips, add), h("h2", { style: ehGestao() ? "margin-top:18px" : "" }, "Dados cadastrais"), h("div", { class: "kv" }, kv.map(([k, v]) => [h("div", {}, k), h("div", {}, v)]))), mudaEmp);
 }
 async function tConsultas(p) {
   const _pkc = {};
