@@ -58,7 +58,6 @@ function telaNovaSenha() {
   boasVindas(h("div", {}, h("h2", {}, "Definir nova senha"), campo("Nova senha", a),
     h("div", { class: "row", style: "margin-top:14px" }, h("button", { class: "btn-p grow", onclick: async () => {
       if (a.value.length < 8) return toast("Use pelo menos 8 caracteres.", true);
-      if (/2026$/.test(a.value)) return toast("Escolha uma senha diferente da provisória (não termine em 2026).", true);
       const { error } = await sb.auth.updateUser({ password: a.value, data: { trocar_senha: false } }); if (error) return toast(error.message, true);
       toast("Senha alterada."); RECUPERANDO = false; history.replaceState(null, "", location.pathname + "#/agenda"); iniciar(); } }, "Salvar"))));
 }
@@ -68,7 +67,7 @@ async function carregarBase() {
   const { data: { user } } = await sb.auth.getUser();
   const { data: perfil } = await sb.from("perfis").select("*").eq("id", user.id).maybeSingle();
   if (!perfil || !perfil.ativo) { await sb.auth.signOut(); return telaLogin("Seu usuário ainda não tem acesso ao sistema. Fale com a administração."); }
-  S.perfil = perfil; S.trocar = !!(user.user_metadata && user.user_metadata.trocar_senha);
+  S.perfil = perfil; S.trocar = false; // a senha padrão (nome + 2026) é a senha definitiva: nunca exigir troca
   [S.profs, S.emps, S.servs] = await Promise.all([ok(sb.from("profissionais").select("*").order("nome")), ok(sb.from("empresas").select("*")), ok(sb.from("servicos").select("*").order("nome"))]);
   return true;
 }
@@ -332,9 +331,9 @@ async function vProfissionais() {
     !ehAdmin() && h("div", { class: "small muted", style: "margin-top:8px" }, "Somente o administrador edita profissionais e acessos."));
 }
 function mostraCredenciais(linhas) {
-  const txt = linhas.map(l => l.nome + " — login: " + l.login + " — senha provisória: " + l.senha).join("\n");
-  modal("Dados de acesso", h("div", {}, h("div", { class: "warn" }, "No primeiro acesso cada pessoa é obrigada a trocar a senha. Entregue estes dados só à própria pessoa."),
-    h("table", {}, h("thead", {}, h("tr", {}, ["Profissional", "Login", "Senha provisória"].map(t => h("th", {}, t)))), h("tbody", {}, linhas.map(l => h("tr", {}, h("td", {}, l.nome), h("td", {}, h("b", {}, l.login)), h("td", {}, l.senha)))))),
+  const txt = linhas.map(l => l.nome + " — login: " + l.login + " — senha padrão: " + l.senha).join("\n");
+  modal("Dados de acesso", h("div", {}, h("div", { class: "warn" }, "Esta é a senha padrão de cada profissional; não é pedida troca no primeiro acesso. Entregue estes dados só à própria pessoa."),
+    h("table", {}, h("thead", {}, h("tr", {}, ["Profissional", "Login", "Senha padrão"].map(t => h("th", {}, t)))), h("tbody", {}, linhas.map(l => h("tr", {}, h("td", {}, l.nome), h("td", {}, h("b", {}, l.login)), h("td", {}, l.senha)))))),
     [{ t: "Copiar tudo", f: async () => { try { await navigator.clipboard.writeText(txt); toast("Copiado."); } catch (e) { toast("Não consegui copiar.", true); } return false; } }, { t: "Fechar", p: true }], "720px");
 }
 async function criarAcesso(x) {
@@ -345,7 +344,7 @@ async function criarAcesso(x) {
 async function criarTodosAcessos(lista) {
   const alvo = lista.filter(x => x.ativo && !(S.acessos && S.acessos[x.id]));
   if (!alvo.length) return toast("Todos os profissionais ativos já têm acesso.");
-  if (!confirm("Criar acesso para " + alvo.length + " profissional(is) ativo(s)?\nLogin = nome; senha provisória = nome + 2026 (troca obrigatória no 1º acesso).")) return;
+  if (!confirm("Criar acesso para " + alvo.length + " profissional(is) ativo(s)?\nLogin = nome; senha padrão = nome + 2026.")) return;
   const feitos = [], falhas = [];
   for (const x of alvo) { try { feitos.push(await criarAcesso(x)); } catch (e) { falhas.push(x.nome + ": " + e.message); } }
   if (falhas.length) toast("Falharam: " + falhas.join(" | "), true);
@@ -367,9 +366,9 @@ function profModal(x) {
 function acessoBloco(x) {
   const r = regraAcesso(x.nome), ac = (S.acessos || {})[x.id];
   return h("div", { class: "card", style: "margin-top:14px;background:var(--verde-cl)" }, h("h3", {}, "Acesso ao sistema"),
-    h("div", { class: "small" }, ac ? ["Login: ", h("b", {}, ac.login), ac.ativo ? "" : " (desativado)"] : ["Sem acesso ainda. Será criado com login ", h("b", {}, r.login), " e senha provisória ", h("b", {}, r.senha), "."]),
+    h("div", { class: "small" }, ac ? ["Login: ", h("b", {}, ac.login), ac.ativo ? "" : " (desativado)"] : ["Sem acesso ainda. Será criado com login ", h("b", {}, r.login), " e senha padrão ", h("b", {}, r.senha), "."]),
     h("div", { class: "row", style: "margin-top:8px" },
       !ac && h("button", { class: "btn-s btn-p", onclick: async () => { try { const c = await criarAcesso(x); toast("Acesso criado."); rota(); mostraCredenciais([c]); } catch (e) { toast(e.message, true); } } }, "Criar acesso"),
-      ac && h("button", { class: "btn-s", onclick: async () => { if (!confirm("Redefinir a senha de " + x.nome + " para a provisória (" + r.senha + ")? Ela terá de trocar no próximo acesso.")) return; try { await acessoApi({ acao: "redefinir", profissional_id: x.id, senha: r.senha }); toast("Senha redefinida."); mostraCredenciais([{ nome: x.nome, login: ac.login, senha: r.senha }]); } catch (e) { toast(e.message, true); } } }, "Redefinir senha"),
+      ac && h("button", { class: "btn-s", onclick: async () => { if (!confirm("Redefinir a senha de " + x.nome + " para a padrão (" + r.senha + ")?")) return; try { await acessoApi({ acao: "redefinir", profissional_id: x.id, senha: r.senha }); toast("Senha redefinida."); mostraCredenciais([{ nome: x.nome, login: ac.login, senha: r.senha }]); } catch (e) { toast(e.message, true); } } }, "Redefinir senha"),
       ac && ac.ativo && h("button", { class: "btn-s btn-d", onclick: async () => { if (!confirm("Desativar o acesso de " + x.nome + "?")) return; try { await acessoApi({ acao: "desativar", profissional_id: x.id }); toast("Acesso desativado."); rota(); } catch (e) { toast(e.message, true); } } }, "Desativar acesso")));
 }
