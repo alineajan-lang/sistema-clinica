@@ -69,6 +69,7 @@ async function carregarBase() {
   if (!perfil || !perfil.ativo) { await sb.auth.signOut(); return telaLogin("Seu usuário ainda não tem acesso ao sistema. Fale com a administração."); }
   S.perfil = perfil; S.trocar = false; // a senha padrão (nome + 2026) é a senha definitiva: nunca exigir troca
   [S.profs, S.emps, S.servs] = await Promise.all([ok(sb.from("profissionais").select("*").order("nome")), ok(sb.from("empresas").select("*")), ok(sb.from("servicos").select("*").order("nome"))]);
+  if (ehProf()) S.profs = S.profs.filter(p => p.id === S.perfil.profissional_id); // profissional nunca guarda a lista dos colegas (defesa extra, além das regras do banco)
   return true;
 }
 const TAB_ICO = {
@@ -172,8 +173,8 @@ async function vPacientes(q) {
   const comCanc = new Set(recentes.map(r => r.paciente_id));
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Pacientes"), ehGestao() && h("button", { class: "btn-p", onclick: () => pacModal(null) }, "+ Novo paciente")),
     h("div", { class: "row", style: "margin-top:10px" }, seg), h("div", { class: "row", style: "margin-top:10px" }, busca, fp, h("button", { onclick: () => go() }, "Buscar"))),
-    h("div", { class: "card" }, pacs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Clínica", "Telefone", "Profissionais"].map(t => h("th", {}, t)))),
-      h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
+    h("div", { class: "card" }, pacs.length ? h("table", {}, h("thead", {}, h("tr", {}, (ehProf() ? ["Nome", "Clínica", "Telefone"] : ["Nome", "Clínica", "Telefone", "Profissionais"]).map(t => h("th", {}, t)))),
+      h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), !ehProf() && h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
       pacs.length >= 80 && h("div", { class: "small muted", style: "margin-top:8px" }, "Mostrando os 80 primeiros. Refine a busca.")));
 }
 function pacModal(p) {
@@ -225,7 +226,7 @@ async function tDados(p, vinc) {
   const chips = vinc.map(v => h("span", { class: "chip" }, profNome(v.profissional_id), v.principal && " ★", ehGestao() && h("a", { href: "#", style: "margin-left:6px;text-decoration:none", title: "Remover vínculo", onclick: async e => { e.preventDefault(); if (!confirm("Remover vínculo com " + profNome(v.profissional_id) + "?")) return; await ok(sb.from("paciente_profissional").delete().eq("paciente_id", p.id).eq("profissional_id", v.profissional_id)); rota(); } }, "×")));
   const add = ehGestao() && sel([["", "+ vincular profissional"]].concat(S.profs.filter(x => x.ativo && !vinc.some(v => v.profissional_id === x.id)).map(x => [x.id, x.nome])), "", { style: "width:auto;max-width:260px", onchange: async e => { if (!e.target.value) return; await ok(sb.from("paciente_profissional").insert({ paciente_id: p.id, profissional_id: e.target.value, principal: !vinc.length })); rota(); } });
   const kv = [["CPF", p.cpf], ["Nascimento", p.nascimento && fmtData(p.nascimento + "T12:00:00-04:00")], ["Sexo", p.sexo], ["Responsável", p.responsavel], ["Como nos conheceu", p.origem], ["Parceria", p.parceria], ["Observações", p.observacoes]].filter(x => x[1]);
-  return h("div", { class: "card" }, h("h2", {}, "Profissionais que atendem"), h("div", { class: "row" }, chips, add), h("h2", { style: "margin-top:18px" }, "Dados cadastrais"), h("div", { class: "kv" }, kv.map(([k, v]) => [h("div", {}, k), h("div", {}, v)])));
+  return h("div", { class: "card" }, ehGestao() && h("h2", {}, "Profissionais que atendem"), ehGestao() && h("div", { class: "row" }, chips, add), h("h2", { style: ehGestao() ? "margin-top:18px" : "" }, "Dados cadastrais"), h("div", { class: "kv" }, kv.map(([k, v]) => [h("div", {}, k), h("div", {}, v)])));
 }
 async function tConsultas(p) {
   const _pkc = {};

@@ -103,6 +103,7 @@
       '<div class="minigrid">' + ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"].map(x => '<div class="dw">' + x + "</div>").join("") + cells.join("") + "</div>";
   }
   function agList() {
+    if (ehProf()) return "";
     const lista = profsAtivos(), oc = lista.some(p => C.hideP[p.id]);
     const grupo = (tipo, titulo) => { const ps = lista.filter(p => empTipo(p) === tipo); if (!ps.length) return "";
       return '<div class="grp"><span class="etag ' + tipo + '">' + titulo + "</span></div>" + ps.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join(""); };
@@ -131,7 +132,7 @@
       '<div class="range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
       (C.view === "lista" ? "" : '<div class="seg"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
       '<div class="seg"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
-      (C.view === "prof" ? '<button class="btn btn-ghost" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
+      (C.view === "prof" && !ehProf() ? '<button class="btn btn-ghost" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao ? '<button class="btn btn-primary" data-act="newcons">+ Nova consulta</button>' : "") + "</div>";
     const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
@@ -162,7 +163,7 @@
           const blHtml = C.blq.filter(b => df.p ? b.profissional_id === df.p.id : (unico && b.profissional_id === unico)).map(b => {
             const r = blqDia(b, d); if (!r) return ""; const a0 = Math.max(r.a, HSTART * 60), z0 = Math.min(r.b, HEND * 60); if (z0 <= a0) return "";
             const faixa = (r.a === 0 && r.b === 1440) ? "Dia todo" : (fromMin(r.a) + " - " + fromMin(r.b));
-            return '<div class="bl" data-act="blq" data-id="' + esc(b.id) + '" style="top:' + ((a0 - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(22, (z0 - a0) / 60 * HH - 2) + 'px" title="' + esc(b.comentario || "Bloqueio") + '"><span class="blh">🔒 ' + faixa + "</span><b>" + esc(b.comentario || "Bloqueio") + "</b></div>";
+            return '<div class="bl" data-act="blq" data-id="' + esc(b.id) + '" style="top:' + ((a0 - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(22, (z0 - a0) / 60 * HH - 2) + 'px" title="' + esc(ehProf() ? "Horário bloqueado" : (b.comentario || "Bloqueio")) + '"><span class="blh">🔒 ' + faixa + "</span><b>" + esc(ehProf() ? "Horário bloqueado" : (b.comentario || "Bloqueio")) + "</b></div>";
           }).join("");
           const evHtml = evs.map(e => {
             if (C.view === "semana" && e._n >= 4) { if (vistos[e._cs]) return ""; vistos[e._cs] = 1; return '<div class="ev many" data-act="goday" data-d="' + d + '" style="--c:var(--accent);top:' + ((e._cs - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(44, (e._ce - e._cs) / 60 * HH - 2) + 'px;left:1px;width:calc(100% - 3px)"><b class="evn">' + e._cn + ' atendimentos</b><span class="evm"><span>ver por profissional</span></span></div>'; }
