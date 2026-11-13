@@ -33,6 +33,12 @@
   const pagBadge = c => { if (c.pacoteId) return { cls: "", txt: "pacote" }; if (quitado(c)) return { cls: "", txt: "pago" }; return pagoTotal(c) > 0 ? { cls: " pend", txt: "parcial" } : { cls: " pend", txt: "a receber" }; };
   const proNome = id => (S.profs.find(p => p.id === id) || {}).nome || "Profissional";
   const dentro = (c) => !S.emp || c.empresaId === S.emp;
+  const profAtivo = id => { const p = S.profs.find(x => x.id === id); return !p || p.ativo; };
+  const empCods = p => (p.empresas || []).map(id => (S.emps.find(e => e.id === id) || {}).codigo);
+  const empTipo = p => { const c = empCods(p), e = c.includes("essencia"), a = c.includes("atlas"); return e && a ? "ea" : (a ? "a" : "e"); };
+  const empRot = p => ({ e: "Essência", a: "Atlas", ea: "Essência + Atlas" }[empTipo(p)]);
+  const etag = p => '<span class="etag ' + empTipo(p) + '">' + empRot(p) + "</span>";
+  const empDoCons = c => (S.emps.find(e => e.id === c.empresaId) || {}).codigo === "atlas" ? "Atlas" : "Essência";
 
   // ---------- dados ----------
   function mapAg(r) {
@@ -51,7 +57,7 @@
       ok(sb.from("bloqueios").select("*").lt("inicio", b).gt("fim", a).limit(3000))]);
     C.cons = ags.map(mapAg); C.blq = bl; C.range = [ini, fim];
   }
-  const consVis = () => C.cons.filter(dentro);
+  const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId));
   function blqDia(b, d) {
     const ds = new Date(toISO(d, "00:00")).getTime(), de = ds + 86400000, s = new Date(b.inicio).getTime(), e = new Date(b.fim).getTime();
     if (e <= ds || s >= de) return null;
@@ -86,8 +92,10 @@
   }
   function agList() {
     const lista = profsAtivos(), oc = lista.some(p => C.hideP[p.id]);
+    const grupo = (tipo, titulo) => { const ps = lista.filter(p => empTipo(p) === tipo); if (!ps.length) return "";
+      return '<div class="grp"><span class="etag ' + tipo + '">' + titulo + "</span></div>" + ps.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join(""); };
     return '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
-      lista.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join("") + "</div>";
+      grupo("e", "Essência") + grupo("a", "Atlas") + grupo("ea", "Essência + Atlas") + "</div>";
   }
   function listaHtml(cons) {
     const rows = cons.slice().sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
@@ -123,15 +131,15 @@
     else {
       let defs;
       if (C.view === "prof") {
-        const base = S.profs.filter(p => visP(p.id) && (p.ativo || cons.some(c => c.profissionalId === p.id)) && (atendeEm(p) || cons.some(c => c.profissionalId === p.id)));
+        const base = S.profs.filter(p => p.ativo && visP(p.id) && (atendeEm(p) || cons.some(c => c.profissionalId === p.id)));
         const com = base.filter(p => cons.some(c => c.profissionalId === p.id));
-        defs = ((C.allCols || !com.length) ? base.filter(p => p.ativo) : com).map(p => ({ d: days[0], p }));
+        defs = ((C.allCols || !com.length) ? base : com).map(p => ({ d: days[0], p }));
       } else defs = days.map(d => ({ d, p: null }));
       if (!defs.length) corpo = '<div class="empty"><b>Nenhuma agenda marcada.</b><br>Marque ao menos um profissional em <b>Agendas</b>.</div>';
       else {
         const n = defs.length, total = (HEND - HSTART) * HH, minc = C.view === "prof" ? 190 : 150, grid = "52px repeat(" + n + ",minmax(" + minc + "px,1fr))";
         const head = '<div class="calhead" style="grid-template-columns:' + grid + '"><div></div>' + defs.map(df => {
-          if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + "</small></span></div>";
+          if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + " " + etag(df.p) + "</small></span></div>";
           return '<div class="dh' + (df.d === hoje ? " today" : "") + '" data-act="goday" data-d="' + df.d + '"><small>' + DOW[dowOf(df.d)] + "</small>" + (df.d === hoje ? "<b>" + diaN(df.d) + "</b>" : diaN(df.d)) + "</div>";
         }).join("") + "</div>";
         const gutter = '<div class="gutter" style="height:' + total + 'px">' + Array.from({ length: HEND - HSTART }, (_, i) => '<div class="hl" style="top:' + (i * HH) + 'px">' + pad(HSTART + i) + ":00</div>").join("") + "</div>";
@@ -151,7 +159,7 @@
             const nm2 = (e._n >= 3) ? String(nome).split(" ")[0] : nome, dim = (cqn && norm(nome).indexOf(cqn) === -1); let inner;
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
-            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + "</span>" : "") + pay + "</span>";
+            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
             return '<div class="ev ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
@@ -211,7 +219,7 @@
     const body = (c ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + (STCHIP[d.status] || "") + '">' + esc(STATUS[d.status]) + "</span>" + (gestao ? '<span class="chip ' + (pst === "Paga" ? "ok" : (pst === "Sem valor" ? "" : "warn")) + '">' + pst + "</span>" : "") + '<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px">' + avatar(pro0) + esc(pro0.nome) + "</span></div>" : "") +
       '<div class="sect"><h3>Paciente</h3><div class="field"><label for="fPacQ">Nome</label><input id="fPacQ" type="text" autocomplete="off" placeholder="Buscar paciente" value="' + esc(d.pacienteNome) + '"' + bloq + '><div class="sug" id="sug" hidden></div></div>' + (c && d.pacienteId ? '<div><a class="btn btn-ghost btn-sm" href="#/paciente/' + esc(d.pacienteId) + (prof ? "?t=prontuario" : "") + '">Ver ficha e prontuário</a></div>' : "") + "</div>" +
       '<div class="sect"><h3>Detalhes da consulta</h3>' + (c ? '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="quick" data-s="confirmada">Confirmar</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="realizada">Marcar realizada</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="faltou">Faltou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_paciente">Cancelou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_clinica">Clínica cancelou</button></div>' : "") +
-      '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloq + ">" + S.profs.filter(p => p.ativo || p.id === d.profissionalId).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
+      '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloq + ">" + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
       '<div class="three"><div class="field"><label for="fData">Data</label><input id="fData" type="date" value="' + esc(d.data) + '"' + bloq + '></div><div class="field"><label for="fHora">Hora</label><input id="fHora" type="time" step="900" value="' + esc(d.hora) + '"' + bloq + '></div><div class="field"><label for="fDur">Duração (min)</label><input id="fDur" type="number" step="5" min="5" value="' + esc(d.duracao) + '"' + bloq + "></div></div>" +
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
       '<div class="two"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + "></div></div></div>" +
@@ -270,7 +278,7 @@
   function abreBlq(id, preset) {
     preset = preset || {}; const b = id ? C.blq.find(x => x.id === id) : null; if (!ehGestao()) return;
     const ini = b ? new Date(b.inicio) : null, fim = b ? new Date(b.fim) : null;
-    const corpo = '<div class="sect"><div class="field"><label>Profissional</label><select id="bPro">' + S.profs.filter(p => p.ativo || (b && p.id === b.profissional_id)).map(p => opt(p.id, p.nome, p.id === (b ? b.profissional_id : preset.pro))).join("") + "</select></div>" +
+    const corpo = '<div class="sect"><div class="field"><label>Profissional</label><select id="bPro">' + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === (b ? b.profissional_id : preset.pro))).join("") + "</select></div>" +
       '<div class="three"><div class="field"><label>Data</label><input id="bData" type="date" value="' + esc(b ? diaDe(b.inicio) : (preset.data || C.anchor)) + '"></div><div class="field"><label>Início</label><input id="bIni" type="time" value="' + esc(b ? hhmm(b.inicio) : (preset.hora || "08:00")) + '"></div><div class="field"><label>Fim</label><input id="bFim" type="time" value="' + esc(b ? hhmm(b.fim) : fromMin(toMin(preset.hora || "08:00") + 60)) + '"></div></div>' +
       '<label class="chk" style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="bDia"' + (b && b.dia_todo ? " checked" : "") + '> Dia todo</label><div class="field"><label>Motivo</label><input id="bMot" value="' + esc(b ? b.comentario : "") + '" placeholder="Reunião, almoço, férias, sublocação…"></div></div>';
     C.modal = { blq: id || null };

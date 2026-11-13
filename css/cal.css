@@ -1,14 +1,15 @@
 /* Calendário e barra lateral — baseados no Sistema Atlas (layout estilo Doctoralia), com as cores de cada empresa */
-:root{
+body{
   --accent:var(--verde);--accent-ink:var(--verde-esc);--accent-soft:var(--verde-cl);--on-accent:#fff;
   --surface:var(--card);--surface-2:color-mix(in srgb,var(--verde-cl) 55%,var(--card));
   --border:var(--bd);--border-soft:color-mix(in srgb,var(--bd) 55%,var(--card));
   --ink:var(--tx);--ink-muted:var(--mut);--ink-faint:color-mix(in srgb,var(--mut) 72%,var(--card));
   --late:var(--err);--late-soft:color-mix(in srgb,var(--err) 13%,var(--card));
   --warn-soft:color-mix(in srgb,var(--warn) 16%,var(--card));--ok-soft:color-mix(in srgb,var(--ok) 16%,var(--card));
-  --now:#d6453d;--bar:#4f6b3a;--bar-ink:#fff;--bar-soft:rgba(255,255,255,.16);
+  --now:#d6453d;--bar:#2f2d26;--bar-ink:#fff;--bar-soft:rgba(255,255,255,.16);
   --shadow-sm:0 2px 8px -2px rgba(20,30,20,.2);--shadow-lg:0 18px 50px -12px rgba(10,15,10,.4);
 }
+body[data-emp=essencia]{--bar:#4f6b3a}
 body[data-emp=atlas]{--bar:#1c1e26}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bar:#202a19}:root:not([data-theme=light]) body[data-emp=atlas]{--bar:#0f1014}}
 
@@ -128,3 +129,15 @@ body[data-emp=atlas]{--bar:#1c1e26}
 .drw .mfoot{padding:12px 18px;border-top:1px solid var(--border-soft);display:flex;gap:8px;flex-wrap:wrap;background:var(--surface)}
 @media (min-width:1201px){body.drawer-open #main{padding-right:456px}}
 .evo{border-left:3px solid var(--verde);padding:6px 12px;margin:0 0 14px}.evo .meta{font-size:12.5px;color:var(--mut);margin-bottom:4px}.evo .corpo h4{margin:8px 0 2px;font-size:13px;color:var(--verde-esc)}.evo .corpo p{margin:0 0 6px}
+
+/* Essária: tema neutro quando as duas clínicas aparecem juntas */
+body[data-emp=todas],body:not([data-emp]){--verde:#7d7a45;--verde-esc:#5f5c33;--verde-cl:#efecda;--bg:#f8f5ee;--bar:#2f2d26}
+body[data-emp=essencia]{--verde:#6f8a52;--verde-esc:#566f3e;--verde-cl:#e9f0df;--bg:#fbf8f1}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) body[data-emp=todas]{--verde:#bdb97a;--verde-esc:#d6d29a;--verde-cl:#2c2b1e;--bg:#15150f;--bar:#1c1b16}}
+.brand2{display:flex;gap:8px;align-items:center;padding:8px 0}.brand2 img{height:34px;border-radius:6px;background:#fff;padding:2px}.brand2 img.dim{opacity:.35;filter:grayscale(.4)}
+@media (min-width:901px){.brand2{flex-direction:column;padding:12px 6px 8px;gap:6px}.brand2 img{width:60px;height:auto;max-height:60px;object-fit:contain}}
+.etag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:99px;padding:1px 8px;letter-spacing:.02em;white-space:nowrap}
+.etag.e{background:#e3ecd5;color:#46602f}.etag.a{background:#efe6cf;color:#7a6236}.etag.ea{background:linear-gradient(90deg,#e3ecd5,#efe6cf);color:#4d4d33}
+.ev .etag{background:rgba(255,255,255,.92);color:#333}
+.agl .grp{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);margin:10px 0 3px;display:flex;align-items:center;gap:6px}
+.wl-sys{text-align:center;margin:6px 0 18px}.wl-sys b{display:block;font-family:Marcellus,Georgia,serif;font-weight:400;font-size:30px;letter-spacing:.14em;color:#2f2d26}.wl-sys small{color:#7a7668;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase}

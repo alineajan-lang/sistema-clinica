@@ -1,7 +1,7 @@
 // Sistema Clínica Essência / Atlas — aplicação principal
 const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-const S = { perfil: null, profs: [], emps: [], servs: [], emp: (function () { try { return localStorage.getItem("emp") || ""; } catch (e) { return ""; } })() };
-function setEmp(id) { S.emp = id; try { localStorage.setItem("emp", id); } catch (e) {} rota(); }
+const S = { perfil: null, profs: [], emps: [], servs: [], emp: (function () { try { return localStorage.getItem("emp2") || ""; } catch (e) { return ""; } })() };
+function setEmp(id) { S.emp = id; try { localStorage.setItem("emp2", id); } catch (e) {} rota(); }
 const root = document.getElementById("app");
 const ehGestao = () => S.perfil && (S.perfil.papel === "admin" || S.perfil.papel === "recepcao");
 const ehAdmin = () => S.perfil && S.perfil.papel === "admin";
@@ -17,7 +17,7 @@ function boasVindas(card) {
     h("div", { class: "brands" },
       h("div", { class: "brand b1" }, h("img", { src: "img/logo-essencia.png", alt: "Clínica Essência" }), h("p", {}, "Clínica Essência")),
       h("div", { class: "brand b2" }, h("img", { src: "img/logo-atlas.png", alt: "Clínica Atlas" }), h("p", {}, "Clínica Atlas"))),
-    h("div", { class: "wl-body" }, h("div", { class: "wl-card" }, card), h("p", { class: "small", style: "text-align:center;color:#8a8577;margin-top:16px" }, "Acesso restrito à equipe"))));
+    h("div", { class: "wl-body" }, h("div", { class: "wl-sys" }, h("b", {}, "Essária"), h("small", {}, "Essência · Atlas")), h("div", { class: "wl-card" }, card), h("p", { class: "small", style: "text-align:center;color:#8a8577;margin-top:16px" }, "Acesso restrito à equipe"))));
 }
 // ================= ACESSOS (login do profissional = nome; senha provisória = nome + 2026) =================
 const DOMINIO_LOGIN = "acesso.invalid"; // domínio reservado: nenhum e-mail é entregue
@@ -83,11 +83,11 @@ function shell(conteudo, ativo) {
   const eid = c => (S.emps.find(e => e.codigo === c) || {}).id || "";
   const ctx = S.emp && S.emp === eid("atlas") ? "atlas" : S.emp ? "essencia" : "todas";
   document.body.dataset.emp = ctx;
-  const logos = ctx === "atlas" ? [h("img", { class: "lg", src: "img/logo-atlas.png", alt: "Atlas" })] : ctx === "essencia" ? [h("img", { class: "lg", src: "img/logo-essencia.png", alt: "Essência" })] : [h("img", { class: "lg", src: "img/logo-essencia.png", alt: "Essência" })];
+  const logos = h("div", { class: "brand2", title: "Essária — Essência e Atlas" }, h("img", { class: ctx === "atlas" ? "dim" : "", src: "img/logo-essencia.png", alt: "Essência" }), h("img", { class: ctx === "essencia" ? "dim" : "", src: "img/logo-atlas.png", alt: "Atlas" }));
   const sw = h("div", { class: "semp" }, [["Essência", eid("essencia")], ["Atlas", eid("atlas")], ["Todas", ""]].map(([t, id]) => h("button", { class: (S.emp || "") === id ? "on" : "", onclick: () => setEmp(id) }, t)));
   const wide = ativo === "agenda";
   root.replaceChildren(h("div", { class: "app" },
-    h("header", { class: "topbar" }, h("div", { class: "topin" }, h("div", { class: "brand" }, logos),
+    h("header", { class: "topbar" }, h("div", { class: "topin" }, logos,
       h("nav", { class: "stabs" }, nav.map(([k, t]) => h("a", { href: "#/" + k, class: "stab" + (ativo === k ? " active" : "") }, svgIco(k), h("span", {}, t)))),
       h("div", { class: "sfoot" }, sw, h("div", {}, S.perfil.nome, h("br"), h("a", { href: "#", onclick: e => { e.preventDefault(); RECUPERANDO = true; telaNovaSenha(); } }, "Alterar senha"), " · ", h("a", { href: "#", onclick: async e => { e.preventDefault(); await sb.auth.signOut(); } }, "Sair"))))),
     h("main", { id: "main", class: "mainx" + (wide ? " wide" : "") }, conteudo)));
@@ -200,7 +200,7 @@ async function vFicha(id, q) {
   if (!p) return vazio("Paciente não encontrado ou sem acesso.");
   const vinc = await ok(sb.from("paciente_profissional").select("*").eq("paciente_id", id));
   const abas = [["dados", "Dados"], ["consultas", "Consultas"]].concat(ehGestao() ? [["financeiro", "Pacotes e pagamentos"]] : []).concat([["prontuario", "Prontuário"], ["documentos", "Documentos"]]);
-  const cab = h("div", { class: "card" }, h("div", { class: "row" }, h("div", { class: "grow" }, h("h1", {}, p.nome, " ", empCod(p.empresa_id) === "atlas" && h("span", { class: "chip atlas" }, "Atlas"), !p.ativo && h("span", { class: "chip" }, "inativo")),
+  const cab = h("div", { class: "card" }, h("div", { class: "row" }, h("div", { class: "grow" }, h("h1", {}, p.nome, " ", h("span", { class: "chip " + (empCod(p.empresa_id) === "atlas" ? "atlas" : "") }, empCod(p.empresa_id) === "atlas" ? "Atlas" : "Essência"), !p.ativo && h("span", { class: "chip" }, "inativo")),
     h("div", { class: "muted" }, [idade(p.nascimento), p.telefone, p.email].filter(Boolean).join(" · "))), ehGestao() && h("button", { onclick: () => pacModal(p) }, "Editar"),
     ehGestao() && h("button", { class: "btn-p", onclick: () => agModal(null, { paciente: p, profissional_id: (vinc.find(v => v.principal) || vinc[0] || {}).profissional_id }) }, "Agendar")));
   const tabs = h("div", { class: "tabs" }, abas.map(([k, t]) => h("button", { class: tab === k ? "on" : "", onclick: () => location.hash = "#/paciente/" + id + "?t=" + k }, t)));
@@ -238,9 +238,13 @@ async function tFinanceiro(p) {
     pend.length > 0 && h("div", { class: "card" }, h("h2", {}, "Sessões avulsas realizadas sem pagamento"), pend.map(a => h("div", { class: "row", style: "padding:4px 0" }, fmtDataHora(a.inicio), " · ", nomeCurto(profNome(a.profissional_id)), " · ", brl(a.valor), h("span", { class: "grow" }), h("button", { class: "btn-s", onclick: () => pgModal(p, pcs, pend, a.id) }, "Receber")))),
     h("div", { class: "card" }, h("h2", {}, "Pagamentos"), pgs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Data", "Valor", "Forma", "Ref."].map(t => h("th", {}, t)))), h("tbody", {}, pgs.map(x => h("tr", {}, h("td", { class: "nowrap" }, fmtDataHora(x.pago_em)), h("td", {}, brl(x.valor)), h("td", {}, FORMAS[x.forma] + (x.final_cartao ? " ••" + x.final_cartao : "")), h("td", { class: "small muted" }, x.pacote_id ? "Pacote" : x.agendamento_id ? "Sessão" : "", x.observacao && " · " + x.observacao))))) : vazio("Sem pagamentos.")));
 }
-function pctModal(p) {
-  const f = { tipo: sel([["Quinzenal", "Quinzenal"], ["Semanal", "Semanal"], ["Integral", "Integral"], ["Avulso", "Avulso"]], "Quinzenal"), n: h("input", { type: "number", value: 2, min: 1 }), v: h("input", { type: "number", step: "0.01", value: 0 }), pf: sel(S.profs.filter(x => x.ativo).map(x => [x.id, x.nome]), ""), d: h("input", { type: "date", value: hojeISO() }) };
-  modal("Novo pacote", h("div", {}, h("div", { class: "g2" }, campo("Tipo", f.tipo), campo("Profissional", f.pf)), h("div", { class: "g3" }, campo("Nº de sessões", f.n), campo("Valor (R$)", f.v), campo("Data da venda", f.d))), [{ t: "Cancelar" }, { t: "Salvar", p: true, f: async () => {
+async function pctModal(p) {
+  const modelos = await ok(sb.from("pacote_modelos").select("*").eq("ativo", true).order("ordem"));
+  const f = { modelo: sel(modelos.map(m => [m.id, m.nome]).concat([["", "Personalizado"]]), modelos[0] ? modelos[0].id : ""), tipo: sel([["Quinzenal", "Quinzenal"], ["Semanal", "Semanal"], ["Integral", "Integral"], ["Avulso", "Avulso"]], "Quinzenal"),
+    n: h("input", { type: "number", value: 2, min: 1 }), v: h("input", { type: "number", step: "0.01", value: 0 }), pf: sel(S.profs.filter(x => x.ativo).map(x => [x.id, x.nome]), (S.profs.find(x => x.ativo) || {}).id), d: h("input", { type: "date", value: hojeISO() }) };
+  const aplica = () => { const m = modelos.find(x => x.id === f.modelo.value); if (m) { f.tipo.value = m.tipo; f.n.value = m.sessoes_total; f.v.value = m.valor; } };
+  f.modelo.addEventListener("change", aplica); aplica();
+  modal("Novo pacote", h("div", {}, campo("Modelo de pacote", f.modelo), h("div", { class: "g2" }, campo("Tipo", f.tipo), campo("Profissional", f.pf)), h("div", { class: "g3" }, campo("Nº de sessões", f.n), campo("Valor (R$)", f.v), campo("Data da venda", f.d))), [{ t: "Cancelar" }, { t: "Salvar", p: true, f: async () => {
     const mx = await ok(sb.from("pacotes").select("numero").order("numero", { ascending: false }).limit(1));
     await ok(sb.from("pacotes").insert({ empresa_id: p.empresa_id, paciente_id: p.id, profissional_id: f.pf.value, numero: ((mx[0] || {}).numero || 0) + 1, tipo: f.tipo.value, sessoes_total: Number(f.n.value), valor: Number(f.v.value), vendido_em: f.d.value }));
     toast("Pacote criado."); rota(); } }]);
