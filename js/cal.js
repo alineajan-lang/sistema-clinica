@@ -133,7 +133,7 @@
       (C.view === "lista" ? "" : '<div class="seg"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
       '<div class="seg"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
       (C.view === "prof" && !ehProf() ? '<button class="btn btn-ghost" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
-      (gestao ? '<button class="btn btn-primary" data-act="newcons">+ Nova consulta</button>' : "") + "</div>";
+      (gestao || ehProf() ? '<button class="btn btn-primary" data-act="newcons">+ Nova consulta</button>' : "") + "</div>";
     const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
     const vis = cons.filter(c => !CANC(c.status)), recv = vis.reduce((a, c) => a + pagoTotal(c), 0), aber = vis.filter(c => c.status === "realizada").reduce((a, c) => a + saldoC(c), 0);
@@ -227,17 +227,17 @@
   }
   async function abreCons(id, preset) {
     const c = id ? C.cons.find(x => x.id === id) : null; preset = preset || {}; const gestao = ehGestao(), prof = ehProf();
-    if (!id && !gestao) return;
+    if (!id && !gestao && !prof) return;
     const defPro = c ? c.profissionalId : (preset.pro || profsAtivos().filter(p => visP(p.id))[0]?.id || profsAtivos()[0]?.id);
     const d = { profissionalId: defPro, pacienteId: c ? c.pacienteId : (preset.pid || ""), pacienteNome: c ? c.pacienteNome : (preset.nome || ""), data: c ? c.data : (preset.data || hojeISO()), hora: c ? c.hora : (preset.hora || "08:00"), duracao: c ? c.duracao : 60, servicoId: c ? c.servicoId : "", servico: c ? c.servico : "", valor: c ? c.valor : 0, status: c ? c.status : "agendada", pags: c ? c.pagamentos : [], obs: c ? c.obs : "" };
     C.modal = { id: id || null, pid: d.pacienteId, emp: c ? c.empresaId : null };
     const pro0 = S.profs.find(p => p.id === d.profissionalId) || { id: d.profissionalId, nome: "Profissional" }, vv = Number(d.valor) || 0, tot = d.pags.reduce((a, x) => a + x.valor, 0), pst = vv <= 0 ? "Sem valor" : (tot >= vv ? "Paga" : (tot > 0 ? "Pagamento parcial" : "Não paga"));
-    const bloq = prof ? " disabled" : "";
+    const bloqPac = (prof && c) ? " disabled" : "", bloqPro = prof ? " disabled" : "", bloq = "";
     const servs = S.servs.filter(s => s.ativo);
     const body = (c ? '<div class="fbanner ' + (empDoCons(c) === "Atlas" ? "a" : "e") + '">PACIENTE ' + (empDoCons(c) === "Atlas" ? "DA ATLAS" : "DA ESSÊNCIA") + "</div>" : "") + (c ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + (STCHIP[d.status] || "") + '">' + esc(STATUS[d.status]) + "</span>" + (gestao ? '<span class="chip ' + (pst === "Paga" ? "ok" : (pst === "Sem valor" ? "" : "warn")) + '">' + pst + "</span>" : "") + '<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px">' + avatar(pro0) + esc(pro0.nome) + "</span></div>" : "") +
-      '<div class="sect"><h3>Paciente</h3><div class="field"><label for="fPacQ">Nome</label><input id="fPacQ" type="text" autocomplete="off" placeholder="Buscar paciente" value="' + esc(d.pacienteNome) + '"' + bloq + '><div class="sug" id="sug" hidden></div></div>' + (c && d.pacienteId ? '<div><a class="btn btn-ghost btn-sm" href="#/paciente/' + esc(d.pacienteId) + (prof ? "?t=prontuario" : "") + '">Ver ficha e prontuário</a></div>' : "") + "</div>" +
+      '<div class="sect"><h3>Paciente</h3><div class="field"><label for="fPacQ">Nome</label><input id="fPacQ" type="text" autocomplete="off" placeholder="Buscar paciente" value="' + esc(d.pacienteNome) + '"' + bloqPac + '><div class="sug" id="sug" hidden></div></div>' + (c && d.pacienteId ? '<div><a class="btn btn-ghost btn-sm" href="#/paciente/' + esc(d.pacienteId) + (prof ? "?t=prontuario" : "") + '">Ver ficha e prontuário</a></div>' : "") + "</div>" +
       '<div class="sect"><h3>Detalhes da consulta</h3>' + (c ? '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="quick" data-s="confirmada">Confirmar</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="realizada">Marcar realizada</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="faltou">Faltou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_paciente">Cancelou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_clinica">Clínica cancelou</button></div>' : "") +
-      '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloq + ">" + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
+      '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloqPro + ">" + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
       '<div class="three"><div class="field"><label for="fData">Data</label><input id="fData" type="date" value="' + esc(d.data) + '"' + bloq + '></div><div class="field"><label for="fHora">Hora</label><input id="fHora" type="time" step="900" value="' + esc(d.hora) + '"' + bloq + '></div><div class="field"><label for="fDur">Duração (min)</label><input id="fDur" type="number" step="5" min="5" value="' + esc(d.duracao) + '"' + bloq + "></div></div>" +
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
       '<div class="two"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + "></div></div></div>" +
@@ -252,7 +252,7 @@
     q.addEventListener("input", () => { C.modal.pid = ""; clearTimeout(t); t = setTimeout(async () => {
       const txt = q.value.trim(); if (txt.length < 2) { sug.hidden = true; return; }
       const { data } = await sb.rpc("buscar_pacientes", { q: txt, lim: 8 }); C.sugs = data || [];
-      sug.innerHTML = C.sugs.map(p => '<button type="button" data-act="pickpat" data-id="' + esc(p.id) + '">' + esc(p.nome) + " " + tagEmp(p.empresa_id) + "</button>").join("") + (C.sugs.some(p => norm(p.nome) === norm(txt)) ? "" : '<button type="button" data-act="pickpat" data-id="">+ Cadastrar “' + esc(txt) + "” como novo</button>"); sug.hidden = !sug.innerHTML; }, 250); });
+      sug.innerHTML = C.sugs.map(p => '<button type="button" data-act="pickpat" data-id="' + esc(p.id) + '">' + esc(p.nome) + " " + tagEmp(p.empresa_id) + "</button>").join("") + (C.sugs.some(p => norm(p.nome) === norm(txt)) || !ehGestao() ? "" : '<button type="button" data-act="pickpat" data-id="">+ Cadastrar “' + esc(txt) + "” como novo</button>"); sug.hidden = !sug.innerHTML; }, 250); });
     $("fServ").addEventListener("change", () => { const s = servs.find(x => norm(x.nome) === norm($("fServ").value)); if (s && !c) { $("fValor").value = s.valor_padrao; if (s.duracao_min) $("fDur").value = s.duracao_min; } });
     ["fPro", "fData", "fHora", "fDur", "fSt"].forEach(i => $(i) && $(i).addEventListener("change", aviso));
     ["fValor"].forEach(i => $(i) && $(i).addEventListener("input", updPaySum));
@@ -267,9 +267,18 @@
   }
   async function salvaCons(statusOverride) {
     const M = C.modal; if (!M) return;
-    if (ehProf()) { // profissional só altera situação e notas
-      if (!M.id) return;
-      await ok(sb.from("agendamentos").update({ status: statusOverride || val("fSt"), comentario: val("fObs") || null }).eq("id", M.id)); toast("Salvo."); fecha(); return recarrega(true);
+    if (ehProf()) { // profissional agenda e remarca apenas os próprios pacientes, na própria agenda
+      const st0 = statusOverride || val("fSt") || "agendada";
+      if (!val("fData") || !val("fHora")) return toast("Informe a data e a hora.", true);
+      if (!CANC(st0)) { const cf0 = conflito(M.id, S.perfil.profissional_id, val("fData"), val("fHora"), val("fDur")); if (cf0) { aviso(); return toast("Você já tem um paciente nesse horário.", true); } }
+      const s0 = S.servs.find(x => norm(x.nome) === norm(val("fServ"))), ini0 = new Date(toISO(val("fData"), val("fHora"))), fim0 = new Date(ini0.getTime() + (Number(val("fDur")) || 60) * 60000);
+      const base = { servico_id: s0 ? s0.id : null, inicio: ini0.toISOString(), fim: fim0.toISOString(), status: st0, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null };
+      if (M.id) await ok(sb.from("agendamentos").update(base).eq("id", M.id));
+      else {
+        const pid0 = M.pid; if (!pid0) return toast("Escolha um paciente da sua lista (digite o nome e clique no resultado).", true);
+        await ok(sb.from("agendamentos").insert(Object.assign({ empresa_id: M.emp, paciente_id: pid0, profissional_id: S.perfil.profissional_id }, base)));
+      }
+      C.anchor = val("fData"); toast("Agendamento salvo."); fecha(); return recarrega(true);
     }
     const nome = val("fPacQ"); if (!nome) return toast("Informe o paciente.", true);
     if (!val("fData") || !val("fHora")) return toast("Informe a data e a hora.", true);
@@ -335,7 +344,7 @@
     agtoggle(el) { C.hideP[el.dataset.id] = !el.checked; salvaPrefs(); pinta(); }, agall() { C.hideP = {}; salvaPrefs(); pinta(); },
     cons(el, ev) { ev.stopPropagation(); abreCons(el.dataset.id); }, newcons() { abreCons(null, { data: C.anchor }); }, newblq() { abreBlq(null, { pro: profsAtivos()[0]?.id }); },
     blq(el, ev) { ev.stopPropagation(); abreBlq(el.dataset.id); },
-    slot(el, ev) { if (!ehGestao() || ev.target.closest(".ev,.bl")) return; const r = el.getBoundingClientRect(), y = ev.clientY - r.top, mins = Math.round((HSTART * 60 + y / C.hh * 60) / 15) * 15; abreCons(null, { data: el.dataset.d, hora: fromMin(Math.max(0, Math.min(1425, mins))), pro: el.dataset.p || undefined }); },
+    slot(el, ev) { if (!(ehGestao() || ehProf()) || ev.target.closest(".ev,.bl")) return; const r = el.getBoundingClientRect(), y = ev.clientY - r.top, mins = Math.round((HSTART * 60 + y / C.hh * 60) / 15) * 15; abreCons(null, { data: el.dataset.d, hora: fromMin(Math.max(0, Math.min(1425, mins))), pro: el.dataset.p || undefined }); },
     closemodal() { fecha(); }, savecons() { salvaCons().catch(e => toast(e.message, true)); }, quick(el) { const s = el.dataset.s; if ($("fSt")) $("fSt").value = s; salvaCons(s).catch(e => toast(e.message, true)); },
     payadd() { const v = Number(val("fValor")) || 0, t = readPays().reduce((a, x) => a + x.valor, 0), box = $("payBox"), tmp = document.createElement("div"); tmp.innerHTML = payRow({ valor: Math.max(0, Math.round((v - t) * 100) / 100) }); box.appendChild(tmp.firstChild); updPaySum(); },
     paydel(el) { el.closest(".prow").remove(); updPaySum(); }, delcons() { excluiCons().catch(e => toast(e.message, true)); }, saveblq() { salvaBlq().catch(e => toast(e.message, true)); },

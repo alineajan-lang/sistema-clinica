@@ -193,3 +193,15 @@ tr.emp-e td:first-child,tr.emp-a td:first-child{padding-left:18px}
 .pkv{display:inline-block;font-style:normal;font-weight:800;font-size:11.5px;border-radius:6px;padding:1px 7px;color:#fff;white-space:nowrap}
 .pkv.v360{background:#2f7fb8}.pkv.v450{background:#7a5bb0}.pkv.v720{background:#0e8f8a}.pkv.v900{background:#c0562b}.pkv.vx{background:#6b6b6b}
 .ev .evm .pkv{border:1px solid rgba(255,255,255,.85)}
+
+/* prontuário: subabas, grupos recolhíveis, status do salvamento automático */
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--border-soft);margin-bottom:14px;flex-wrap:wrap}
+.subtab{border:0;border-radius:0;background:transparent;color:var(--ink-muted);font-weight:800;padding:9px 14px;cursor:pointer;border-bottom:3px solid transparent}
+.subtab.on{color:var(--accent-ink);border-bottom-color:var(--accent)}
+.agx{border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px}
+.agx>summary{padding:11px 14px;cursor:pointer;font-weight:800;list-style:none}
+.agx>summary::-webkit-details-marker{display:none}.agx>summary::before{content:"▸";color:var(--ink-faint);margin-right:8px}.agx[open]>summary::before{content:"▾"}
+.agx .agc{font-weight:600;color:var(--ink-faint);font-size:12px}
+.agb{padding:2px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:13px}
+.as{font-size:12.5px;color:var(--ink-muted);margin:6px 0;min-height:18px;font-weight:700}.as.ok{color:var(--ok)}.as.err{color:var(--late)}

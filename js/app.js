@@ -202,7 +202,7 @@ async function vFicha(id, q) {
   const [p] = await ok(sb.from("pacientes").select("*").eq("id", id));
   if (!p) return vazio("Paciente não encontrado ou sem acesso.");
   const vinc = await ok(sb.from("paciente_profissional").select("*").eq("paciente_id", id));
-  const abas = [["dados", "Dados"], ["consultas", "Consultas"]].concat(ehGestao() ? [["financeiro", "Pacotes e pagamentos"]] : []).concat([["prontuario", "Prontuário"], ["documentos", "Documentos"]]);
+  const abas = [["dados", "Dados"], ["consultas", "Consultas"]].concat(ehGestao() ? [["financeiro", "Pacotes e pagamentos"]] : []).concat([["prontuario", "Prontuário"], ["documentos", "Anexos"]]);
   const faixa = h("div", { class: "fbanner " + (empCod(p.empresa_id) === "atlas" ? "a" : "e") }, empCod(p.empresa_id) === "atlas" ? "PACIENTE DA ATLAS" : "PACIENTE DA ESSÊNCIA");
   const cab = h("div", { class: "card ficha-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e") }, h("div", { class: "row" }, h("div", { class: "grow" }, h("h1", {}, p.nome, " ", empBadge(p.empresa_id), !p.ativo && h("span", { class: "chip" }, "inativo")),
     h("div", { class: "muted" }, [idade(p.nascimento), p.telefone, p.email].filter(Boolean).join(" · "))), ehGestao() && h("button", { onclick: () => pacModal(p) }, "Editar"),
@@ -218,7 +218,7 @@ async function vFicha(id, q) {
   if (tab === "dados") corpo = await tDados(p, vinc);
   else if (tab === "consultas") corpo = await tConsultas(p);
   else if (tab === "financeiro" && ehGestao()) corpo = await tFinanceiro(p);
-  else if (tab === "prontuario") corpo = await tProntuario(p);
+  else if (tab === "prontuario") corpo = await prontuario(p);
   else corpo = await tDocumentos(p);
   return h("div", {}, faixa, cab, aviso, tabs, corpo);
 }
