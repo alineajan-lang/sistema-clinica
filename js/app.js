@@ -254,7 +254,7 @@ async function tFinanceiro(p) {
 }
 async function pctModal(p) {
   const modelos = await ok(sb.from("pacote_modelos").select("*").eq("ativo", true).order("ordem"));
-  const f = { modelo: sel(modelos.map(m => [m.id, m.nome]).concat([["", "Personalizado"]]), modelos[0] ? modelos[0].id : ""), tipo: sel([["Quinzenal", "Quinzenal"], ["Semanal", "Semanal"], ["Integral", "Integral"], ["Avulso", "Avulso"]], "Quinzenal"),
+  const f = { modelo: sel(modelos.map(m => [m.id, pkReais(m.valor) + " — " + String(m.nome).replace(/\s*R\$\s*\d+/, "")]).concat([["", "Personalizado"]]), modelos[0] ? modelos[0].id : ""), tipo: sel([["Quinzenal", "Quinzenal"], ["Semanal", "Semanal"], ["Integral", "Integral"], ["Avulso", "Avulso"]], "Quinzenal"),
     n: h("input", { type: "number", value: 2, min: 1 }), v: h("input", { type: "number", step: "0.01", value: 0 }), pf: sel(S.profs.filter(x => x.ativo).map(x => [x.id, x.nome]), (S.profs.find(x => x.ativo) || {}).id), d: h("input", { type: "date", value: hojeISO() }) };
   const aplica = () => { const m = modelos.find(x => x.id === f.modelo.value); if (m) { f.tipo.value = m.tipo; f.n.value = m.sessoes_total; f.v.value = m.valor; } };
   f.modelo.addEventListener("change", aplica); aplica();
@@ -266,7 +266,7 @@ async function pctModal(p) {
 function pgModal(p, pcs, pend, sessId) {
   const tipoRef = sel([["sessao", "Sessão avulsa"], ["pacote", "Pacote"], ["", "Sem vínculo"]], sessId ? "sessao" : (pcs.length && !pend.length ? "pacote" : "sessao"));
   const refSel = h("select", {});
-  const montaRef = () => { refSel.replaceChildren(); if (tipoRef.value === "sessao") pend.forEach(a => refSel.append(h("option", { value: a.id, selected: a.id === sessId }, fmtDataHora(a.inicio) + " — " + brl(a.valor)))); else if (tipoRef.value === "pacote") pcs.forEach(c => refSel.append(h("option", { value: c.id }, "#" + c.numero + " " + c.tipo + " " + pkReais(c.valor) + " — falta " + brl(c.valor - c.valor_pago)))); };
+  const montaRef = () => { refSel.replaceChildren(); if (tipoRef.value === "sessao") pend.forEach(a => refSel.append(h("option", { value: a.id, selected: a.id === sessId }, fmtDataHora(a.inicio) + " — " + brl(a.valor)))); else if (tipoRef.value === "pacote") pcs.forEach(c => refSel.append(h("option", { value: c.id }, pkReais(c.valor) + " — #" + c.numero + " " + c.tipo + " · falta " + brl(c.valor - c.valor_pago)))); };
   tipoRef.addEventListener("change", () => { montaRef(); sugere(); }); montaRef();
   const f = { v: h("input", { type: "number", step: "0.01", value: 0 }), forma: sel(Object.entries(FORMAS), "pix"), d: h("input", { type: "datetime-local", value: new Date().toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T") }), fc: h("input", { maxlength: 4, placeholder: "últimos 4 dígitos" }), obs: h("input", {}) };
   function sugere() { if (tipoRef.value === "sessao") { const a = pend.find(x => x.id === refSel.value); if (a) f.v.value = a.valor; } else if (tipoRef.value === "pacote") { const c = pcs.find(x => x.id === refSel.value); if (c) f.v.value = Math.max(0, c.valor - c.valor_pago); } }

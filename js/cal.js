@@ -214,10 +214,15 @@
     else if (bk) { el.textContent = "Horário bloqueado" + (bk.comentario ? ": " + bk.comentario : "") + ". Dá para agendar mesmo assim."; el.style.background = "var(--warn-soft)"; el.style.color = "var(--warn)"; }
   }
   function blqDiaHora(b, d, hora, dur) { const r = blqDia(b, d); if (!r || !hora) return false; const ini = toMin(hora), fim = ini + (Number(dur) || 60); return r.a < fim && ini < r.b; }
+  const limpaNome = n => String(n || "").replace(/\s*R\$\s*\d+/, "");
   async function fillPacotes(pid, sel) {
-    const el = $("fPac"); if (!el) return; el.innerHTML = opt("", "— sem pacote —", !sel); if (!pid) return;
-    const pcs = await ok(sb.from("pacotes").select("id,numero,tipo,sessoes_total,valor").eq("paciente_id", pid).order("numero", { ascending: false }));
-    el.innerHTML = opt("", "— sem pacote —", !sel) + pcs.map(p => opt(p.id, "#" + p.numero + " " + (p.tipo || "") + " · " + pkReais(p.valor) + " (" + p.sessoes_total + " sessões)", p.id === sel)).join("");
+    const el = $("fPac"); if (!el) return;
+    if (!C.modelos) { try { C.modelos = await ok(sb.from("pacote_modelos").select("*").eq("ativo", true).order("ordem")); } catch (e) { C.modelos = []; } }
+    let pcs = []; if (pid) pcs = await ok(sb.from("pacotes").select("id,numero,tipo,sessoes_total,valor").eq("paciente_id", pid).order("numero", { ascending: false }));
+    const grpPac = pcs.length ? '<optgroup label="Pacotes já contratados pelo paciente">' + pcs.map(p => opt(p.id, pkReais(p.valor) + " — #" + p.numero + " " + (p.tipo || "") + " (" + p.sessoes_total + " sessões)", p.id === sel)).join("") + "</optgroup>" : "";
+    const grpNovo = (C.modelos || []).length ? '<optgroup label="Vender novo pacote (escolha pelo valor)">' + C.modelos.map(m => opt("novo:" + m.id, pkReais(m.valor) + " — " + limpaNome(m.nome) + " · NOVO")).join("") + "</optgroup>" : "";
+    el.innerHTML = opt("", "— sem pacote —", !sel) + grpPac + grpNovo;
+    if (sel) el.value = sel;
   }
   async function abreCons(id, preset) {
     const c = id ? C.cons.find(x => x.id === id) : null; preset = preset || {}; const gestao = ehGestao(), prof = ehProf();
@@ -279,7 +284,15 @@
     }
     if (!emp) { const r = await ok(sb.from("pacientes").select("empresa_id").eq("id", pid).single()); emp = r.empresa_id; }
     const s = S.servs.find(x => norm(x.nome) === norm(val("fServ"))), ini = new Date(toISO(val("fData"), val("fHora"))), fim = new Date(ini.getTime() + (Number(val("fDur")) || 60) * 60000);
-    const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: val("fPac") || null, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null };
+    let pacoteId = val("fPac") || null, valorSessao = null;
+    if (pacoteId && pacoteId.indexOf("novo:") === 0) {
+      const m = (C.modelos || []).find(x => x.id === pacoteId.slice(5)); if (!m) return toast("Modelo de pacote não encontrado.", true);
+      if (!confirm("Vender o pacote " + pkReais(m.valor) + " — " + limpaNome(m.nome) + " para " + nome + "?")) return;
+      const mx = await ok(sb.from("pacotes").select("numero").order("numero", { ascending: false }).limit(1));
+      const np2 = await ok(sb.from("pacotes").insert({ empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), numero: ((mx[0] || {}).numero || 0) + 1, tipo: m.tipo, sessoes_total: m.sessoes_total, valor: m.valor, valor_pago: 0, vendido_em: hojeISO() }).select("id").single());
+      pacoteId = np2.id; valorSessao = Math.round(Number(m.valor) / Number(m.sessoes_total) * 100) / 100;
+    }
+    const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null };
     let aid = M.id;
     if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; }
     // pagamentos da sessão
