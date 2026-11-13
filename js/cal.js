@@ -123,7 +123,30 @@
     return out + "</div>";
   }
 
+  const isMob = () => window.innerWidth < 700;
+  const nomeC = n => String(n || "").replace(/^Dra?\.\s+/i, "").split(" ")[0];
+  // Celular: em vez da grade (que exige rolar para os lados), uma lista compacta por horário
+  function mobLista(cons, days, cqn) {
+    const hoje = hojeISO(), pro = ehProf(), gestao = ehGestao(); let out = '<div class="mlist">', n = 0;
+    days.forEach(d => {
+      const its = cons.filter(c => c.data === d && (!cqn || norm(c.pacienteNome).indexOf(cqn) !== -1)).map(c => ({ k: toMin(c.hora), t: "c", c }));
+      if (!cqn) { const seen = {}; C.blq.filter(b => visP(b.profissional_id) && profAtivo(b.profissional_id)).forEach(b => { const r = blqDia(b, d); if (!r) return; const key = r.a + "|" + r.b + "|" + (b.comentario || ""); if (seen[key]) { seen[key].n++; return; } seen[key] = { k: r.a, t: "b", b, r, n: 1 }; its.push(seen[key]); }); }
+      its.sort((x, y) => x.k - y.k || (x.t === "b" ? 1 : -1));
+      const qtd = its.filter(i => i.t === "c").length; n += qtd;
+      if (days.length > 1) out += '<div class="mday' + (d === hoje ? " today" : "") + '" data-act="goday" data-d="' + d + '"><span>' + esc(diaSemana(d)) + (d === hoje ? " · hoje" : "") + "</span><small>" + (qtd ? qtd + " consulta" + (qtd === 1 ? "" : "s") : "livre") + "</small></div>";
+      if (!its.length) { if (days.length === 1) out += '<div class="mempty">' + (cqn ? "Nenhuma consulta encontrada neste dia." : "Nenhuma consulta neste dia.<br>Toque em <b>+ Nova consulta</b> para agendar.") + "</div>"; return; }
+      its.forEach(i => {
+        if (i.t === "b") { const todo = i.r.a === 0 && i.r.b === 1440, nome = pro ? "Horário bloqueado" : (i.b.comentario || "Bloqueio"); out += '<div class="mrow mblk" data-act="blq" data-id="' + esc(i.b.id) + '"><div class="mt">' + (todo ? "<b>Dia</b><small>todo</small>" : "<b>" + fromMin(i.r.a) + "</b><small>" + fromMin(i.r.b) + "</small>") + '</div><div class="mb"><div class="mn">🔒 ' + esc(nome) + "</div>" + (pro ? "" : '<div class="ms">' + (i.n > 1 ? i.n + " agendas" : esc(nomeC(proNome(i.b.profissional_id)))) + "</div>") + "</div><div></div></div>"; return; }
+        const c = i.c, fim = fromMin(toMin(c.hora) + c.duracao), pb = pagBadge(c), pr = proNome(c.profissionalId);
+        const pay = (c.valor > 0 && !CANC(c.status) && c.status !== "faltou" && gestao) ? '<span class="chip ' + ((pb.txt === "pago" || pb.txt === "pacote") ? "ok" : "warn") + '">' + pb.txt + "</span>" : "";
+        out += '<div class="mrow" data-act="cons" data-id="' + esc(c.id) + '" style="--c:' + corProf(c.profissionalId) + '"><div class="mt"><b>' + esc(c.hora) + "</b><small>" + esc(fim) + '</small></div><div class="mb"><div class="mn">' + esc(c.pacienteNome) + emk(c) + '</div><div class="ms">' + (pro ? "" : esc(nomeC(pr)) + " · ") + esc(c.servico || "Consulta") + (c.pacoteNum ? " · pacote #" + c.pacoteNum : "") + (c.obs ? " · 📝" : "") + '</div></div><div class="mr"><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + "</span>" + pay + "</div></div>";
+      });
+    });
+    return out + "</div>";
+  }
+
   function html() {
+    if (isMob() && C.view === "lista") C.view = "semana";
     const HH = C.hh; document.documentElement.style.setProperty("--hh", HH + "px");
     const days = rangeDays(), hoje = hojeISO(), dia1 = C.view === "prof", cqn = norm(C.cq);
     const title = dia1 ? diaSemana(days[0]) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
@@ -142,7 +165,8 @@
     const achou = cqn ? vis.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1).length : 0;
     const strip = '<div class="strip"><span><b>' + vis.length + "</b> consulta" + (vis.length === 1 ? "" : "s") + " no período</span>" + (gestao ? "<span>Recebido <b>" + brl(recv) + "</b></span><span>A receber (realizadas) <b>" + brl(aber) + "</b></span>" : "") + (cqn ? "<span><b>" + achou + "</b> encontrada(s) para “" + esc(C.cq) + "”</span>" : (gestao ? "<span>Clique em um horário vazio para agendar.</span>" : "")) + "</div>";
     let corpo;
-    if (C.view === "lista") corpo = listaHtml(cqn ? cons.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1) : cons);
+    if (isMob()) corpo = mobLista(cons, days, cqn);
+    else if (C.view === "lista") corpo = listaHtml(cqn ? cons.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1) : cons);
     else {
       let defs;
       if (C.view === "prof") {

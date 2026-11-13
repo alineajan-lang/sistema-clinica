@@ -1,5 +1,5 @@
 // Service worker: deixa o app instalável e abre mais rápido. Dados de pacientes NUNCA são guardados aqui.
-const V = "essatlas-v17";
+const V = "essatlas-v18";
 const CDN = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 self.addEventListener("install", e => { self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
