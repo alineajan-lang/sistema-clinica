@@ -65,3 +65,20 @@ body[data-emp=atlas]{--verde:#997d48;--verde-esc:#7a6236;--verde-cl:#f1ead9;--ro
 .wl-card h2{margin-top:6px}
 .wl-card .btn-p{background:linear-gradient(90deg,#6f8a52,#8a7a4a);border:0}
 @media(max-width:520px){.wl .brand img{height:84px}.wl .brand p{font-size:10.5px;letter-spacing:.14em}}
+
+/* ===== celular: janelas, tabelas e fichas ===== */
+@media (max-width:700px){
+  .mask{padding:0;align-items:flex-end}
+  .modal{max-width:none;border-radius:18px 18px 0 0;max-height:94dvh;overflow:auto;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .modal .foot{position:sticky;bottom:-16px;background:var(--card);padding:10px 0 4px;flex-wrap:wrap}.modal .foot button{flex:1 1 40%}
+  .card{overflow-x:auto;padding:12px}
+  table.stack thead{display:none}
+  table.stack,table.stack tbody{display:block}
+  table.stack tr{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--bd)}
+  table.stack td{border:0;padding:0;display:block}
+  table.stack td:first-child{flex:1 0 100%;font-size:16px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+  .tabs button{white-space:nowrap;flex:none;min-height:46px}
+  .kv{grid-template-columns:105px 1fr}
+  h1{font-size:20px}
+}

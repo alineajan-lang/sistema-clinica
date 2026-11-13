@@ -460,11 +460,79 @@
       ["inAtend","Quanto ao atendimento psicológico: a. expectativas dos pais; b. conhecimento da criança sobre o assunto (o que sabe, o que lhe foi dito, reações ao saber); c. atendimentos anteriores (reações e posturas da criança)","area"],
       ["inDiag","Hipóteses diagnósticas (CID-10 ou DSM-5, opcional)","area"]]}]};
 
+ANAMS.psicopedagogia={nome:"Anamnese psicopedagógica",grupos:[
+    {t:"1. Dados de identificação",c:[
+      ["paNasc","Data e local de nascimento","text"],
+      ["paIdade","Idade","text"],
+      ["paResp","Responsáveis","text"],
+      ["paRespProf","Profissão dos responsáveis","text"],
+      ["paIrmaos","Irmãos","text"],
+      ["paEscola","Série e escola","text"]]},
+    {t:"2. Queixa",c:[
+      ["paMotivo","Motivo da procura. Queixa (se dá apenas em um ambiente?)","area"],
+      ["paInicio","A partir de quando começou a perceber. Quando surgiu a queixa (início do problema). Como ele(a) era no(s) ano(s) anterior(es)","area"],
+      ["paLidar","Como você (responsável) tem lidado com isso? Como a criança tem lidado com isso?","area"]]},
+    {t:"3. Rotina e escola",c:[
+      ["paMora","A criança mora com quem?","area"],
+      ["paRotina","A criança possui uma rotina? Como é estruturada? Quem cuida quando está em casa?","area"],
+      ["paHorEstudo","Tem horário para realizar as atividades escolares em casa?","area"],
+      ["paQueixaEsc","Se queixa de algo da escola?","area"],
+      ["paEscolariz","Escolarização (quando iniciou a vida escolar, quantas escolas já frequentou, quando a queixa surgiu, repetências)","area"]]},
+    {t:"4. Socialização e comportamento",c:[
+      ["paBrincar","Socialização/brincar: como é o momento de brincadeira? Brinca sozinho(a)? Tem amigos?","area"],
+      ["paBrincaPais","Brinca com os pais?","area"],
+      ["paGosta","Do que mais gosta de brincar?","area"],
+      ["paRelFam","Socialização/relacionamento familiar (com e entre os pais)","area"],
+      ["paNecess","Em seu convívio social, criam-se necessidades para se desenvolver? Por exemplo, a comunicação. Tem autonomia?","area"],
+      ["paTela","Quanto tempo fica na televisão? Faz uso de celular, videogame ou tablet? Com qual frequência?","area"],
+      ["paDisciplina","Como e quem costuma aplicar a disciplina em casa?","area"],
+      ["paComport","Comportamento em casa (limites, regras etc.)","area"]]},
+    {t:"5. Gestação",c:[
+      ["paIdMae","Idade da mãe na gestação","text"],
+      ["paIdPai","Idade do pai","text"],
+      ["paPlanej","A criança foi planejada/desejada?","sel",["Sim","Não"]],
+      ["paAborto","Já teve algum aborto?","sel",["Sim","Não"]],
+      ["paFumou","Fumou durante a gravidez?","sel",["Sim","Não"]],
+      ["paBebeu","Bebeu durante a gravidez?","sel",["Sim","Não"]],
+      ["paSaudeGest","Saúde durante a gestação (traumas, emocional, internações)","area"]]},
+    {t:"6. Parto e desenvolvimento",c:[
+      ["paParto","Parto","sel",["Normal","Cesária"]],
+      ["paPrem","Prematuro","sel",["Sim","Não"]],
+      ["paComplic","Complicações no parto","sel",["Sim","Não"]],
+      ["paApgar","APGAR","text"],
+      ["paDnpm","Desenvolvimento neuropsicomotor (apoio da cabeça, pegar objetos, sentar, engatinhar, pular, correr, saltar)","area"],
+      ["paLing","Linguagem/fala (primeiras palavras, frases compreensíveis, gagueira)","area"],
+      ["paLingAtual","Como é a linguagem atualmente? (troca letras, fala com dificuldade)","area"],
+      ["paLateral","Lateralidade","sel",["Destro","Canhoto"]]]},
+    {t:"7. Sono e atividades",c:[
+      ["paSono","Sono (tranquilo, agitado, enurese noturna, sonambulismo)","area"],
+      ["paQuarto","Divide o quarto com outras pessoas?","text"],
+      ["paDorme","Horário em que a criança dorme","text"],
+      ["paAcorda","Horário em que a criança acorda","text"],
+      ["paFisica","Realiza alguma atividade física?","sel",["Sim","Não"]],
+      ["paFisicaQual","Qual atividade física?","text"],
+      ["paExtra","Realiza atividades extracurriculares?","area"]]},
+    {t:"8. Saúde e antecedentes",c:[
+      ["paMedic","Uso de medicamentos (se já tomou ou ainda toma)","area"],
+      ["paFamilia","Parentes com problemas (antecedentes familiares)","area"],
+      ["paInfecto","Doenças infectocontagiosas (nome das doenças, tempo de internação, consequências)","area"],
+      ["paTraumas","Traumas (perda de familiares, animais de estimação, acidentes, situações constrangedoras na escola)","area"],
+      ["paNeuro","Presença de fatores neurológicos (tremores, paralisia cerebral, anóxia, tics, familiar com antecedente de dislexia, desatenção, impulsividade)","area"]]},
+    {t:"9. Alimentação e acompanhamentos",c:[
+      ["paRestr","Possui alguma restrição alimentar?","text"],
+      ["paAmament","Foi amamentado(a) no seio?","sel",["Sim","Não"]],
+      ["paAlim","Como é a alimentação? (quais alimentos costuma comer, se alimenta sozinho(a))","area"],
+      ["paAlergia","Possui alguma alergia?","sel",["Sim","Não"]],
+      ["paAlergiaQual","Se sim, qual alergia?","text"],
+      ["paAcomp","Já fez acompanhamento com outro profissional? Por quanto tempo?","area"],
+      ["paObs","Observações complementares (outras informações importantes)","area"]]}]};
+
 // Quais modelos cada área usa (fono: só adulto e infantil/adolescente; psicologia: adulto, casal e infantil)
 ANAMS.psicologia_adulto.nome = "Anamnese adulto"; ANAMS.psicologia_casal.nome = "Anamnese de casal"; ANAMS.psicologia_infantil.nome = "Anamnese infantil e adolescente";
 function anamModelosDaArea(area, prescreve) {
   var a = (area || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(), out = [];
-  if (/psicolog|neuropsic|psicopedag/.test(a)) out = ["psicologia_adulto", "psicologia_casal", "psicologia_infantil"];
+  if (/psicopedag/.test(a)) out = ["psicopedagogia", "psicologia_infantil"];
+  else if (/psicolog|neuropsic/.test(a)) out = ["psicologia_adulto", "psicologia_casal", "psicologia_infantil"];
   else if (/fono/.test(a)) out = ["psicologia_adulto", "psicologia_infantil"];
   else if (/psiquiat/.test(a)) out = ["psiquiatria"];
   else if (/cardio/.test(a)) out = ["cardiologia"];

@@ -205,3 +205,88 @@ tr.emp-e td:first-child,tr.emp-a td:first-child{padding-left:18px}
 .agb{padding:2px 14px 14px;display:flex;flex-direction:column;gap:12px}
 .chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:13px}
 .as{font-size:12.5px;color:var(--ink-muted);margin:6px 0;min-height:18px;font-weight:700}.as.ok{color:var(--ok)}.as.err{color:var(--late)}
+
+/* =====================================================================
+   CELULAR E TELAS DE TOQUE
+   ===================================================================== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,a,.stab,.col,.dh,.tr.click,tr.click,.minigrid button,.ev,.bl{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.daystrip{display:none}
+@media (pointer:coarse){
+  .btn{min-height:44px}.btn-sm{min-height:38px}
+  .seg button{min-height:42px;padding:8px 14px}
+  .xbtn{width:40px;height:40px}
+  .minigrid button{min-height:40px}
+  .agl label{padding:10px 6px}
+  .tabs button{min-height:44px}
+  tr.click td{padding-top:12px;padding-bottom:12px}
+}
+@media (max-width:700px){
+  body{font-size:15.5px}
+  input,select,textarea,.field input,.field select,.field textarea,.toolbar select,.toolbar input[type=search],.toolbar input[type=date],.prow input,.prow select{font-size:16px;min-height:46px}
+  textarea,.field textarea{min-height:96px}
+  input[type=checkbox],input[type=radio]{min-height:0;width:22px;height:22px}
+  button,.btn{min-height:44px}
+
+  /* barra do topo enxuta + abas embaixo (como aplicativo) */
+  .topbar{position:static}
+  .topin{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:0 10px;padding:6px max(12px,env(safe-area-inset-left,0px)) 6px max(12px,env(safe-area-inset-right,0px))}
+  .brand3{padding:0;gap:8px}.brand3 img{width:36px;height:36px;border-radius:10px}.brand3 span{font-size:13px}
+  .sfoot{flex-direction:column;align-items:flex-end;gap:3px;min-width:0}
+  .sfoot>div{font-size:11px;line-height:1.3;text-align:right}
+  .semp button{padding:6px 11px;font-size:13px;min-height:34px}
+  .stabs{position:fixed;left:0;right:0;bottom:0;z-index:16;flex:none;overflow:visible;gap:4px;justify-content:space-around;background:var(--bar);padding:5px max(8px,env(safe-area-inset-left,0px)) calc(5px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-right,0px));border-top:1px solid rgba(255,255,255,.14);box-shadow:0 -4px 16px rgba(0,0,0,.18)}
+  .stab{flex:1;flex-direction:column;justify-content:center;gap:2px;padding:6px 2px;font-size:11.5px;min-height:54px;border-bottom:0;border-radius:12px;opacity:.8}
+  .stab svg{display:block;width:24px;height:24px}
+  .stab.active{background:var(--bar-soft);opacity:1}
+  #main.mainx{padding:10px max(12px,env(safe-area-inset-left,0px)) calc(96px + env(safe-area-inset-bottom,0px))}
+  #toasts{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+
+  /* agenda: barra de ferramentas */
+  .toolbar{gap:8px}.toolbar .grow{display:none}
+  .tb-prev{order:1;width:46px;padding:0}.tb-range{order:2;flex:1;text-align:center;font-size:16px}.tb-next{order:3;width:46px;padding:0}.tb-hoje{order:4}
+  .daystrip{order:5;flex:0 0 100%;display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .daystrip button{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:12px;padding:6px 0;font-weight:800;font-size:15px;min-height:52px;line-height:1.15}
+  .daystrip button small{display:block;font-size:10.5px;text-transform:uppercase;color:var(--ink-faint);font-weight:700}
+  .daystrip button.sel{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.daystrip button.sel small{color:inherit;opacity:.85}
+  .daystrip button.today:not(.sel){outline:2px solid var(--accent);outline-offset:-2px}
+  .tb-view{order:6;flex:1;display:flex}.tb-view button{flex:1;min-height:46px}
+  .tb-ag{order:7}.tb-all{order:8;flex:1 0 100%}
+  .tb-search{order:9;flex:0 0 100%;width:100%!important}
+  .tb-zoom{display:none}
+  .tb-new{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:14;border-radius:999px;padding:14px 20px;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  body.drawer-open .tb-new{display:none}
+  .strip{font-size:12px}
+
+  /* grade: colunas largas com rolagem lateral, hora fixa à esquerda */
+  .calwrap{max-height:none;height:calc(100dvh - 330px);min-height:360px;scroll-snap-type:x proximity;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-radius:12px}
+  .dh,.col{scroll-snap-align:start}
+  .gutter{position:sticky;left:0;z-index:6;background:var(--surface)}
+  .calhead>div:first-child{position:sticky;left:0;z-index:7;background:var(--surface)}
+  .hl{right:4px;font-size:10.5px}
+  .dh.prof{padding:9px 8px}.dh.prof b{font-size:14px}
+  .ev .evn{font-size:14px}.ev .evm{font-size:12px}
+  .bl{font-size:12.5px}
+
+  /* lista da agenda vira cartões */
+  .tbl{overflow:visible;border:0;background:transparent}
+  .tr{min-width:0}
+  .tr.th{display:none}
+  .tr.cols-lista{display:grid;grid-template-columns:1fr auto;grid-template-areas:"t c" "n n" "s s" "p v";gap:4px 10px;background:var(--surface);border:1px solid var(--border)!important;border-radius:12px;margin:0 0 8px;padding:12px}
+  .tr.cols-lista>div:nth-child(1){grid-area:t;font-weight:800}
+  .tr.cols-lista>div:nth-child(2){grid-area:n;font-size:15.5px}
+  .tr.cols-lista>div:nth-child(3){grid-area:s;color:var(--ink-muted)}
+  .tr.cols-lista>div:nth-child(4){grid-area:p}
+  .tr.cols-lista>div:nth-child(5){grid-area:c;text-align:right}
+  .tr.cols-lista>div:nth-child(6){grid-area:v;text-align:right}
+  .tr.foot{background:transparent;border:0!important;padding:10px 2px 4px;font-size:13.5px;color:var(--ink-muted)}
+
+  /* gaveta da consulta ocupa a tela inteira */
+  .drw{width:100%;border-left:0}
+  .drw .mhead{padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+  .drw .mbody{padding:14px}
+  .drw .mfoot{padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}.drw .mfoot .btn,.drw .mfoot button{flex:1 1 42%}
+  .prow{grid-template-columns:1fr 1fr}
+  .two,.three{grid-template-columns:1fr}
+  .subtabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.subtabs::-webkit-scrollbar{display:none}.subtabs button{white-space:nowrap;flex:none;min-height:44px}
+}

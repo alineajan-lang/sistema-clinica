@@ -18,7 +18,7 @@
   const STCHIP = { agendada: "info", confirmada: "info", realizada: "ok", faltou: "late", cancelada_paciente: "", cancelada_clinica: "" };
   const prefs = (() => { try { return JSON.parse(localStorage.getItem("calprefs") || "{}"); } catch (e) { return {}; } })();
   const salvaPrefs = () => { try { localStorage.setItem("calprefs", JSON.stringify({ hideP: C.hideP, hh: C.hh, view: C.view })); } catch (e) {} };
-  const C = { anchor: hojeISO(), view: prefs.view || (window.innerWidth < 700 ? "semana" : "prof"), hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null };
+  const C = { anchor: hojeISO(), view: prefs.view || "prof", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null };
   window.CAL = C;
 
   const visP = id => !C.hideP[id];
@@ -128,12 +128,14 @@
     const days = rangeDays(), hoje = hojeISO(), dia1 = C.view === "prof", cqn = norm(C.cq);
     const title = dia1 ? diaSemana(days[0]) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
     const gestao = ehGestao();
-    const tb = '<div class="toolbar"><button class="btn btn-ghost only-narrow" data-act="sidetoggle">Agendas</button><button class="btn btn-ghost" data-act="hoje">Hoje</button><button class="btn btn-ghost" data-act="nav" data-n="-1" aria-label="Anterior">‹</button><button class="btn btn-ghost" data-act="nav" data-n="1" aria-label="Próximo">›</button>' +
-      '<div class="range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
-      (C.view === "lista" ? "" : '<div class="seg"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
-      '<div class="seg"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
-      (C.view === "prof" && !ehProf() ? '<button class="btn btn-ghost" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
-      (gestao || ehProf() ? '<button class="btn btn-primary" data-act="newcons">+ Nova consulta</button>' : "") + "</div>";
+    const wk = (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
+    const strip7 = C.view === "lista" ? "" : '<div class="daystrip">' + wk.map(d => '<button type="button" data-act="goday" data-d="' + d + '" class="' + (dia1 && d === C.anchor ? "sel " : "") + (d === hoje ? "today" : "") + '"><small>' + DOW[dowOf(d)] + "</small>" + diaN(d) + "</button>").join("") + "</div>";
+    const tb = '<div class="toolbar"><button class="btn btn-ghost only-narrow tb-ag" data-act="sidetoggle">Agendas</button><button class="btn btn-ghost tb-hoje" data-act="hoje">Hoje</button><button class="btn btn-ghost tb-prev" data-act="nav" data-n="-1" aria-label="Anterior">‹</button><button class="btn btn-ghost tb-next" data-act="nav" data-n="1" aria-label="Próximo">›</button>' +
+      '<div class="range tb-range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" class="tb-search" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
+      (C.view === "lista" ? "" : '<div class="seg tb-zoom"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
+      '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
+      (C.view === "prof" && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
+      (gestao || ehProf() ? '<button class="btn btn-primary tb-new" data-act="newcons">+ Nova consulta</button>' : "") + strip7 + "</div>";
     const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
     const vis = cons.filter(c => !CANC(c.status)), recv = vis.reduce((a, c) => a + pagoTotal(c), 0), aber = vis.filter(c => c.status === "realizada").reduce((a, c) => a + saldoC(c), 0);
@@ -150,7 +152,7 @@
       } else defs = days.map(d => ({ d, p: null }));
       if (!defs.length) corpo = '<div class="empty"><b>Nenhuma agenda marcada.</b><br>Marque ao menos um profissional em <b>Agendas</b>.</div>';
       else {
-        const n = defs.length, total = (HEND - HSTART) * HH, minc = C.view === "prof" ? 190 : 150, grid = "52px repeat(" + n + ",minmax(" + minc + "px,1fr))";
+        const n = defs.length, total = (HEND - HSTART) * HH, mob = window.innerWidth < 700, minc = mob ? (C.view === "prof" ? Math.min(360, window.innerWidth - 70) : 112) : (C.view === "prof" ? 190 : 150), grid = (mob ? "42px" : "52px") + " repeat(" + n + ",minmax(" + minc + "px,1fr))";
         const head = '<div class="calhead" style="grid-template-columns:' + grid + '"><div></div>' + defs.map(df => {
           if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + " " + etag(df.p) + "</small></span></div>";
           return '<div class="dh' + (df.d === hoje ? " today" : "") + '" data-act="goday" data-d="' + df.d + '"><small>' + DOW[dowOf(df.d)] + "</small>" + (df.d === hoje ? "<b>" + diaN(df.d) + "</b>" : diaN(df.d)) + "</div>";

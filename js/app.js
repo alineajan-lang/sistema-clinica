@@ -173,7 +173,7 @@ async function vPacientes(q) {
   const comCanc = new Set(recentes.map(r => r.paciente_id));
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Pacientes"), ehGestao() && h("button", { class: "btn-p", onclick: () => pacModal(null) }, "+ Novo paciente")),
     h("div", { class: "row", style: "margin-top:10px" }, seg), h("div", { class: "row", style: "margin-top:10px" }, busca, fp, h("button", { onclick: () => go() }, "Buscar"))),
-    h("div", { class: "card" }, pacs.length ? h("table", {}, h("thead", {}, h("tr", {}, (ehProf() ? ["Nome", "Clínica", "Telefone"] : ["Nome", "Clínica", "Telefone", "Profissionais"]).map(t => h("th", {}, t)))),
+    h("div", { class: "card" }, pacs.length ? h("table", { class: "stack" }, h("thead", {}, h("tr", {}, (ehProf() ? ["Nome", "Clínica", "Telefone"] : ["Nome", "Clínica", "Telefone", "Profissionais"]).map(t => h("th", {}, t)))),
       h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), !ehProf() && h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
       pacs.length >= 80 && h("div", { class: "small muted", style: "margin-top:8px" }, "Mostrando os 80 primeiros. Refine a busca.")));
 }
@@ -231,7 +231,7 @@ async function tDados(p, vinc) {
 async function tConsultas(p) {
   const _pkc = {};
   const ags = await ok(sb.from("agendamentos").select("*,profissional:profissionais(nome),servico:servicos(nome),pacote:pacotes(numero,valor)").eq("paciente_id", p.id).order("inicio", { ascending: false }).limit(300));
-  return h("div", { class: "card" }, ags.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Data", "Hora", "Profissional", "Serviço", "Status"].map(t => h("th", {}, t)))),
+  return h("div", { class: "card" }, ags.length ? h("table", { class: "stack" }, h("thead", {}, h("tr", {}, ["Data", "Hora", "Profissional", "Serviço", "Status"].map(t => h("th", {}, t)))),
     h("tbody", {}, ags.map(a => h("tr", {}, h("td", { class: "nowrap" }, fmtData(a.inicio)), h("td", {}, hhmm(a.inicio)), h("td", {}, nomeCurto(a.profissional.nome)), h("td", {}, a.servico && a.servico.nome, a.pacote && h("span", { class: "chip rosa" }, "Pacote #" + a.pacote.numero + " ", h("span", { class: "pkv " + pkCls(a.pacote.valor) }, pkReais(a.pacote.valor)))), h("td", {}, h("span", { class: "chip " + a.status }, STATUS[a.status])))))) : vazio("Sem consultas."));
 }
 async function tFinanceiro(p) {
