@@ -88,3 +88,7 @@ function pkSlotsHtml(st) {
     : '<span class="pk-s vz"><b>' + (n[i] || (i + 1) + "ª") + "</b> a marcar</span>").join("") + "</div>";
 }
 function pkResumo(st) { return st.real + " de " + st.total + " realizada(s)" + (st.ag ? " · " + st.ag + " agendada(s)" : "") + (st.porMarcar ? " · falta marcar " + st.porMarcar : " · todas marcadas") + (st.faltas ? " · " + st.faltas + " falta(s)" : ""); }
+
+const pkReais = v => "R$ " + Number(v || 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+const pkCls = v => ({ 360: "v360", 450: "v450", 720: "v720", 900: "v900" }[Math.round(Number(v))] || "vx");
+const pkValHtml = v => v ? '<span class="pkv ' + pkCls(v) + '">' + pkReais(v) + "</span>" : "";

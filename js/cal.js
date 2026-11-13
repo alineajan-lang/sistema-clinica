@@ -116,7 +116,7 @@
     rows.forEach(c => {
       if (c.data !== cur) { cur = c.data; out += '<div class="tr foot" style="grid-template-columns:1fr;min-width:0;text-transform:capitalize">' + esc(diaSemana(c.data)) + (c.data === hojeISO() ? " · hoje" : "") + "</div>"; }
       const pr = S.profs.find(p => p.id === c.profissionalId) || { nome: "Profissional", id: c.profissionalId }, pb = pagBadge(c);
-      out += '<div class="tr click cols-lista" data-act="cons" data-id="' + esc(c.id) + '"><div>' + esc(c.hora) + " – " + esc(fromMin(toMin(c.hora) + c.duracao)) + '</div><div><div class="name">' + esc(c.pacienteNome) + "</div>" + (c.obs ? '<div class="meta">📝 ' + esc(c.obs) + "</div>" : "") + "</div><div>" + esc(c.servico) + '</div><div style="display:flex;align-items:center;gap:8px;min-width:0">' + avatar(pr) + "<span>" + esc(pr.nome) + '</span></div><div><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + '</span></div><div class="num">' +
+      out += '<div class="tr click cols-lista" data-act="cons" data-id="' + esc(c.id) + '"><div>' + esc(c.hora) + " – " + esc(fromMin(toMin(c.hora) + c.duracao)) + '</div><div><div class="name">' + esc(c.pacienteNome) + "</div>" + (c.obs ? '<div class="meta">📝 ' + esc(c.obs) + "</div>" : "") + "</div><div>" + esc(c.servico) + (c.pacoteNum ? '<div class="meta">Pacote #' + c.pacoteNum + ' ' + (pkDe(c) ? pkValHtml(pkDe(c).valor) + (pkDe(c).pos[c.id] ? ' · sessão ' + pkDe(c).pos[c.id] + '/' + pkDe(c).total : '') : '') + '</div>' : '') + '</div><div style="display:flex;align-items:center;gap:8px;min-width:0">' + avatar(pr) + "<span>" + esc(pr.nome) + '</span></div><div><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + '</span></div><div class="num">' +
         ((c.valor > 0 && !CANC(c.status) && c.status !== "faltou") ? '<span class="chip ' + ((pb.txt === "pago" || pb.txt === "pacote") ? "ok" : "warn") + '">' + pb.txt + " · " + brl(c.valor) + "</span>" : "—") + "</div></div>";
     });
     return out + "</div>";
@@ -171,7 +171,7 @@
             const nm2 = (e._n >= 3) ? String(nome).split(" ")[0] : nome, dim = (cqn && norm(nome).indexOf(cqn) === -1); let inner;
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
-            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + (pkDe(e) && pkDe(e).pos[e.id] ? " · sessão " + pkDe(e).pos[e.id] + "/" + pkDe(e).total : "") + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
+            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + " " + (pkDe(e) ? pkValHtml(pkDe(e).valor) : "") + (pkDe(e) && pkDe(e).pos[e.id] ? " sessão " + pkDe(e).pos[e.id] + "/" + pkDe(e).total : "") + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
             return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
@@ -216,8 +216,8 @@
   function blqDiaHora(b, d, hora, dur) { const r = blqDia(b, d); if (!r || !hora) return false; const ini = toMin(hora), fim = ini + (Number(dur) || 60); return r.a < fim && ini < r.b; }
   async function fillPacotes(pid, sel) {
     const el = $("fPac"); if (!el) return; el.innerHTML = opt("", "— sem pacote —", !sel); if (!pid) return;
-    const pcs = await ok(sb.from("pacotes").select("id,numero,tipo,sessoes_total").eq("paciente_id", pid).order("numero", { ascending: false }));
-    el.innerHTML = opt("", "— sem pacote —", !sel) + pcs.map(p => opt(p.id, "#" + p.numero + " " + (p.tipo || "") + " (" + p.sessoes_total + " sessões)", p.id === sel)).join("");
+    const pcs = await ok(sb.from("pacotes").select("id,numero,tipo,sessoes_total,valor").eq("paciente_id", pid).order("numero", { ascending: false }));
+    el.innerHTML = opt("", "— sem pacote —", !sel) + pcs.map(p => opt(p.id, "#" + p.numero + " " + (p.tipo || "") + " · " + pkReais(p.valor) + " (" + p.sessoes_total + " sessões)", p.id === sel)).join("");
   }
   async function abreCons(id, preset) {
     const c = id ? C.cons.find(x => x.id === id) : null; preset = preset || {}; const gestao = ehGestao(), prof = ehProf();
@@ -254,7 +254,7 @@
   function pacoteBloco(c) {
     const pk = c && pkDe(c); if (!pk) return "";
     const pos = pk.pos[c.id], sem = pk.semana(c.id);
-    return '<div class="sect"><h3>Pacote #' + esc(pk.numero) + " · " + esc(pk.tipo || "") + (pk.valor ? " · " + brl(pk.valor) : "") + "</h3>" +
+    return '<div class="sect"><h3>Pacote #' + esc(pk.numero) + " · " + esc(pk.tipo || "") + " " + pkValHtml(pk.valor) + "</h3>" +
       '<div style="font-size:15px;font-weight:800">' + (pos ? "Sessão " + pos + " de " + pk.total + (sem ? " <span class=\"muted\" style=\"font-weight:600\">· semana " + sem + " do pacote</span>" : "") : (c.status === "faltou" ? "Faltou (não conta como sessão do pacote)" : "Fora da contagem")) + "</div>" +
       pkBarraHtml(pk) + '<div class="meta">' + esc(pkResumo(pk)) + "</div>" + pkSlotsHtml(pk) +
       '<div class="meta"><b>Faltam ' + pk.faltam + "</b> sessão(ões) para concluir o pacote.</div></div>";
