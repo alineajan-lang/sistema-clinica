@@ -64,3 +64,27 @@ function buscaPaciente(onPick, inicial) {
   }, 250); });
   return { el: h("div", {}, inp, lista), get: () => escolhido };
 }
+
+// ---- progresso de pacote (como no Doctoralia): sessão N de M, quantas faltam, semana do pacote ----
+function pkStats(total, lista) {
+  const ord = (lista || []).slice().sort((a, b) => new Date(a.inicio) - new Date(b.inicio));
+  const ativos = ord.filter(x => !String(x.status).startsWith("cancelada") && x.status !== "faltou");
+  const pos = {}; ativos.forEach((x, i) => { pos[x.id] = i + 1; });
+  const real = ativos.filter(x => x.status === "realizada").length, t = Number(total) || ativos.length;
+  const ini = ativos[0] ? diaDe(ativos[0].inicio) : null;
+  const semana = id => { const x = ativos.find(a => a.id === id); if (!x || !ini) return null; return Math.floor((new Date(diaDe(x.inicio) + "T12:00:00-04:00") - new Date(ini + "T12:00:00-04:00")) / (7 * 864e5)) + 1; };
+  const slots = []; for (let i = 0; i < Math.max(t, ativos.length); i++) slots.push(ativos[i] || null);
+  return { pos, real, ag: ativos.length - real, faltas: ord.filter(x => x.status === "faltou").length, total: t, porMarcar: Math.max(0, t - ativos.length), faltam: Math.max(0, t - real), slots, semana, ativos };
+}
+const _esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function pkBarraHtml(st) {
+  const t = Math.max(st.total, 1), a = Math.round(st.real / t * 100), b = Math.round(Math.min(st.ag, Math.max(0, t - st.real)) / t * 100);
+  return '<div class="pk-bar" title="' + st.real + " realizada(s), " + st.ag + ' agendada(s)"><i class="r" style="width:' + a + '%"></i><i class="a" style="width:' + b + '%"></i></div>';
+}
+function pkSlotsHtml(st) {
+  const n = ["1ª", "2ª", "3ª", "4ª", "5ª", "6ª", "7ª", "8ª", "9ª", "10ª"];
+  return '<div class="pk-slots">' + st.slots.map((x, i) => x
+    ? '<span class="pk-s ' + (x.status === "realizada" ? "ok" : "ag") + '"><b>' + (n[i] || (i + 1) + "ª") + "</b> " + fmtData(x.inicio).slice(0, 5) + " " + hhmm(x.inicio) + (x.status === "realizada" ? " ✓" : "") + "</span>"
+    : '<span class="pk-s vz"><b>' + (n[i] || (i + 1) + "ª") + "</b> a marcar</span>").join("") + "</div>";
+}
+function pkResumo(st) { return st.real + " de " + st.total + " realizada(s)" + (st.ag ? " · " + st.ag + " agendada(s)" : "") + (st.porMarcar ? " · falta marcar " + st.porMarcar : " · todas marcadas") + (st.faltas ? " · " + st.faltas + " falta(s)" : ""); }

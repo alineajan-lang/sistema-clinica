@@ -13,7 +13,7 @@
   const dowOf = iso => new Date(iso + "T12:00:00-04:00").getUTCDay(); // 12:00-04:00 = 16:00 UTC, mesmo dia
   const monday = iso => addDias(iso, -((dowOf(iso) + 6) % 7));
   const HSTART = 6, HEND = 22;
-  const PALETA = ["#0E8F8A", "#C46E85", "#4E6F9C", "#B8862B", "#7A5BB0", "#3F7238", "#C0562B", "#5A6B7B", "#8A5A44", "#2F7F9E", "#A04F8F", "#6E8B3D"];
+  const PALETA = ["#2F6DB5", "#C46E85", "#7A5BB0", "#0E8F8A", "#C0562B", "#5A6B7B", "#8A5A44", "#2F7F9E", "#A04F8F", "#4E6F9C", "#B0476A", "#5B5FA8"];
   const CANC = s => String(s || "").indexOf("cancelada") === 0;
   const STCHIP = { agendada: "info", confirmada: "info", realizada: "ok", faltou: "late", cancelada_paciente: "", cancelada_clinica: "" };
   const prefs = (() => { try { return JSON.parse(localStorage.getItem("calprefs") || "{}"); } catch (e) { return {}; } })();
@@ -58,7 +58,17 @@
       ok(sb.from("agendamentos").select("id,empresa_id,paciente_id,profissional_id,servico_id,pacote_id,inicio,fim,status,valor,comentario,paciente:pacientes(nome),servico:servicos(nome),pacote:pacotes(numero),pagamentos(id,valor,forma,pago_em)").gte("inicio", a).lt("inicio", b).order("inicio").limit(3000)),
       ok(sb.from("bloqueios").select("*").lt("inicio", b).gt("fim", a).limit(3000))]);
     C.cons = ags.map(mapAg); C.blq = bl; C.range = [ini, fim];
+    await carregaPk(ags);
   }
+  async function carregaPk(ags) {
+    const ids = [...new Set(ags.filter(a => a.pacote_id).map(a => a.pacote_id))]; C.pk = {};
+    for (let i = 0; i < ids.length; i += 60) {
+      const ch = ids.slice(i, i + 60);
+      const [pcs, ss] = await Promise.all([ok(sb.from("pacotes").select("id,numero,tipo,sessoes_total,valor,valor_pago,vendido_em").in("id", ch)), ok(sb.from("agendamentos").select("id,pacote_id,inicio,status").in("pacote_id", ch).order("inicio").limit(2000))]);
+      pcs.forEach(p => { const st = pkStats(p.sessoes_total, ss.filter(x => x.pacote_id === p.id)); C.pk[p.id] = Object.assign({ numero: p.numero, tipo: p.tipo, valor: p.valor }, st); });
+    }
+  }
+  const pkDe = c => c.pacoteId && C.pk && C.pk[c.pacoteId];
   const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId) && !CANC(c.status));
   function blqDia(b, d) {
     const ds = new Date(toISO(d, "00:00")).getTime(), de = ds + 86400000, s = new Date(b.inicio).getTime(), e = new Date(b.fim).getTime();
@@ -123,7 +133,7 @@
       '<div class="seg"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
       (C.view === "prof" ? '<button class="btn btn-ghost" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao ? '<button class="btn btn-primary" data-act="newcons">+ Nova consulta</button>' : "") + "</div>";
-    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
+    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
     const vis = cons.filter(c => !CANC(c.status)), recv = vis.reduce((a, c) => a + pagoTotal(c), 0), aber = vis.filter(c => c.status === "realizada").reduce((a, c) => a + saldoC(c), 0);
     const achou = cqn ? vis.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1).length : 0;
@@ -161,8 +171,8 @@
             const nm2 = (e._n >= 3) ? String(nome).split(" ")[0] : nome, dim = (cqn && norm(nome).indexOf(cqn) === -1); let inner;
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
-            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
-            return '<div class="ev ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + inner + "</div>";
+            else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + (pkDe(e) && pkDe(e).pos[e.id] ? " · sessão " + pkDe(e).pos[e.id] + "/" + pkDe(e).total : "") + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
+            return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
           return '<div class="col' + (d === hoje ? " today" : "") + '" data-act="slot" data-d="' + d + '"' + (df.p ? ' data-p="' + esc(df.p.id) + '"' : "") + ' style="height:' + total + 'px">' + blHtml + evHtml + line + "</div>";
@@ -218,7 +228,7 @@
     const pro0 = S.profs.find(p => p.id === d.profissionalId) || { id: d.profissionalId, nome: "Profissional" }, vv = Number(d.valor) || 0, tot = d.pags.reduce((a, x) => a + x.valor, 0), pst = vv <= 0 ? "Sem valor" : (tot >= vv ? "Paga" : (tot > 0 ? "Pagamento parcial" : "Não paga"));
     const bloq = prof ? " disabled" : "";
     const servs = S.servs.filter(s => s.ativo);
-    const body = (c ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + (STCHIP[d.status] || "") + '">' + esc(STATUS[d.status]) + "</span>" + (gestao ? '<span class="chip ' + (pst === "Paga" ? "ok" : (pst === "Sem valor" ? "" : "warn")) + '">' + pst + "</span>" : "") + '<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px">' + avatar(pro0) + esc(pro0.nome) + "</span></div>" : "") +
+    const body = (c ? '<div class="fbanner ' + (empDoCons(c) === "Atlas" ? "a" : "e") + '">PACIENTE ' + (empDoCons(c) === "Atlas" ? "DA ATLAS" : "DA ESSÊNCIA") + "</div>" : "") + (c ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip ' + (STCHIP[d.status] || "") + '">' + esc(STATUS[d.status]) + "</span>" + (gestao ? '<span class="chip ' + (pst === "Paga" ? "ok" : (pst === "Sem valor" ? "" : "warn")) + '">' + pst + "</span>" : "") + '<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px">' + avatar(pro0) + esc(pro0.nome) + "</span></div>" : "") +
       '<div class="sect"><h3>Paciente</h3><div class="field"><label for="fPacQ">Nome</label><input id="fPacQ" type="text" autocomplete="off" placeholder="Buscar paciente" value="' + esc(d.pacienteNome) + '"' + bloq + '><div class="sug" id="sug" hidden></div></div>' + (c && d.pacienteId ? '<div><a class="btn btn-ghost btn-sm" href="#/paciente/' + esc(d.pacienteId) + (prof ? "?t=prontuario" : "") + '">Ver ficha e prontuário</a></div>' : "") + "</div>" +
       '<div class="sect"><h3>Detalhes da consulta</h3>' + (c ? '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="quick" data-s="confirmada">Confirmar</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="realizada">Marcar realizada</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="faltou">Faltou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_paciente">Cancelou</button><button class="btn btn-ghost btn-sm" data-act="quick" data-s="cancelada_clinica">Clínica cancelou</button></div>' : "") +
       '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloq + ">" + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
@@ -226,6 +236,7 @@
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
       '<div class="two"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + "></div></div></div>" +
       (gestao ? '<div class="sect"><h3>Pagamento</h3><div class="field"><label for="fPac">Pacote</label><select id="fPac"><option value="">— sem pacote —</option></select></div><div id="payBox">' + d.pags.map(payRow).join("") + '</div><div id="paySum" class="meta"></div><div><button type="button" class="btn btn-ghost btn-sm" data-act="payadd">+ Registrar pagamento</button></div></div>' : "") +
+      pacoteBloco(c) +
       '<div class="sect"><h3>Notas</h3><div class="field"><textarea id="fObs" placeholder="Adicionar notas">' + esc(d.obs) + "</textarea></div></div>" + (c && gestao ? '<div><button class="btn btn-danger btn-sm" data-act="delcons">Excluir consulta</button></div>' : "");
     $("servList").innerHTML = servs.map(s => '<option value="' + esc(s.nome) + '">').join("");
     drawer(c ? d.pacienteNome : "Nova consulta", body, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button><button class="btn btn-primary" data-act="savecons" style="flex:1">' + (c ? "Salvar" : "Agendar") + "</button>");
@@ -239,6 +250,14 @@
     $("fServ").addEventListener("change", () => { const s = servs.find(x => norm(x.nome) === norm($("fServ").value)); if (s && !c) { $("fValor").value = s.valor_padrao; if (s.duracao_min) $("fDur").value = s.duracao_min; } });
     ["fPro", "fData", "fHora", "fDur", "fSt"].forEach(i => $(i) && $(i).addEventListener("change", aviso));
     ["fValor"].forEach(i => $(i) && $(i).addEventListener("input", updPaySum));
+  }
+  function pacoteBloco(c) {
+    const pk = c && pkDe(c); if (!pk) return "";
+    const pos = pk.pos[c.id], sem = pk.semana(c.id);
+    return '<div class="sect"><h3>Pacote #' + esc(pk.numero) + " · " + esc(pk.tipo || "") + (pk.valor ? " · " + brl(pk.valor) : "") + "</h3>" +
+      '<div style="font-size:15px;font-weight:800">' + (pos ? "Sessão " + pos + " de " + pk.total + (sem ? " <span class=\"muted\" style=\"font-weight:600\">· semana " + sem + " do pacote</span>" : "") : (c.status === "faltou" ? "Faltou (não conta como sessão do pacote)" : "Fora da contagem")) + "</div>" +
+      pkBarraHtml(pk) + '<div class="meta">' + esc(pkResumo(pk)) + "</div>" + pkSlotsHtml(pk) +
+      '<div class="meta"><b>Faltam ' + pk.faltam + "</b> sessão(ões) para concluir o pacote.</div></div>";
   }
   async function salvaCons(statusOverride) {
     const M = C.modal; if (!M) return;
