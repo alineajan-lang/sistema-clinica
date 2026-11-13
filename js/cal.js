@@ -269,6 +269,7 @@
       '<div class="three"><div class="field"><label for="fData">Data</label><input id="fData" type="date" value="' + esc(d.data) + '"' + bloq + '></div><div class="field"><label for="fHora">Hora</label><input id="fHora" type="time" step="900" value="' + esc(d.hora) + '"' + bloq + '></div><div class="field"><label for="fDur">Duração (min)</label><input id="fDur" type="number" step="5" min="5" value="' + esc(d.duracao) + '"' + bloq + "></div></div>" +
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
       '<div class="three"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + '></div><div class="field"><label for="fMod">Atendimento</label><select id="fMod">' + opt("presencial", "Presencial", d.modalidade !== "online") + opt("online", "💻 Online", d.modalidade === "online") + "</select></div></div></div>" +
+      (!c ? '<div class="sect"><h3>Repetir (várias sessões)</h3><div class="two"><div class="field"><label for="fRep">Frequência</label><select id="fRep"><option value="nao">Não repetir</option><option value="sem">Toda semana</option><option value="quin">A cada 2 semanas</option><option value="mes">Todo mês</option></select></div><div class="field"><label for="fRepN">Total de sessões (contando esta)</label><input id="fRepN" type="number" inputmode="numeric" min="2" max="104" value="4"></div></div><div class="note" id="fRepInfo" hidden></div></div>' : "") +
       (gestao ? '<div class="sect"><h3>Pagamento</h3><div class="field"><label for="fPac">Pacote</label><select id="fPac"><option value="">— sem pacote —</option></select></div><div id="payBox">' + d.pags.map(payRow).join("") + '</div><div id="paySum" class="meta"></div><div><button type="button" class="btn btn-ghost btn-sm" data-act="payadd">+ Registrar pagamento</button></div></div>' : "") +
       pacoteBloco(c) +
       '<div class="sect"><h3>Notas</h3><div class="field"><textarea id="fObs" placeholder="Adicionar notas">' + esc(d.obs) + "</textarea></div></div>" + (c && gestao ? '<div><button class="btn btn-danger btn-sm" data-act="delcons">Excluir consulta</button></div>' : "");
@@ -284,6 +285,7 @@
     $("fServ").addEventListener("change", () => { const s = servs.find(x => norm(x.nome) === norm($("fServ").value)); if (s && !c) { $("fValor").value = s.valor_padrao; if (s.duracao_min) $("fDur").value = s.duracao_min; } });
     ["fPro", "fData", "fHora", "fDur", "fSt"].forEach(i => $(i) && $(i).addEventListener("change", aviso));
     ["fValor"].forEach(i => $(i) && $(i).addEventListener("input", updPaySum));
+    ["fRep", "fRepN", "fData"].forEach(i => $(i) && ($(i).addEventListener("input", infoSerie), $(i).addEventListener("change", infoSerie)));
   }
   function pacoteBloco(c) {
     const pk = c && pkDe(c); if (!pk) return "";
@@ -293,8 +295,46 @@
       pkBarraHtml(pk) + '<div class="meta">' + esc(pkResumo(pk)) + "</div>" + pkSlotsHtml(pk) +
       '<div class="meta"><b>Faltam ' + pk.faltam + "</b> sessão(ões) para concluir o pacote.</div></div>";
   }
+  // ---------- várias sessões de uma vez (toda semana, a cada 2 semanas, todo mês) ----------
+  const FREQ = { sem: "toda semana", quin: "a cada 2 semanas", mes: "todo mês" };
+  const dmy = d => d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4);
+  function serieDatas(data, f, n) {
+    const out = [data];
+    for (let i = 1; i < n; i++) {
+      if (f === "sem") out.push(addDias(data, 7 * i)); else if (f === "quin") out.push(addDias(data, 14 * i));
+      else { const m0 = +data.slice(5, 7) - 1 + i, ano = +data.slice(0, 4) + Math.floor(m0 / 12), mes = ((m0 % 12) + 12) % 12, ult = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate(); out.push(ano + "-" + pad(mes + 1) + "-" + pad(Math.min(+data.slice(8, 10), ult))); }
+    }
+    return out;
+  }
+  function serieCfg() { const f = val("fRep"); if (!f || f === "nao") return null; const n = Math.max(2, Math.min(104, parseInt(val("fRepN"), 10) || 2)); return { f, n }; }
+  function infoSerie() {
+    const el = $("fRepInfo"); if (!el) return; const s = serieCfg();
+    if (!s || !val("fData")) { el.hidden = true; return; }
+    const ds = serieDatas(val("fData"), s.f, s.n); el.hidden = false; el.textContent = s.n + " sessões, " + FREQ[s.f] + ", às " + (val("fHora") || "") + ": de " + dmy(ds[0]) + " até " + dmy(ds[ds.length - 1]) + ". Datas com conflito de horário são puladas.";
+  }
+  async function checaSerie(pro, ds, hora, dur) {
+    const a = new Date(new Date(toISO(ds[0], hora)).getTime() - 864e5).toISOString(), b = new Date(new Date(toISO(ds[ds.length - 1], hora)).getTime() + 2 * 864e5).toISOString();
+    const [ags, bls] = await Promise.all([ok(sb.from("agendamentos").select("inicio,fim,status").eq("profissional_id", pro).gte("inicio", a).lt("inicio", b).limit(3000)), ok(sb.from("bloqueios").select("inicio,fim").eq("profissional_id", pro).lt("inicio", b).gt("fim", a).limit(3000))]);
+    const d0 = Number(dur) || 60, livres = [], conf = [];
+    ds.forEach(d => { const i = new Date(toISO(d, hora)), f = new Date(i.getTime() + d0 * 60000); const bate = ags.some(x => !CANC(x.status) && new Date(x.inicio) < f && new Date(x.fim) > i) || bls.some(x => new Date(x.inicio) < f && new Date(x.fim) > i); (bate ? conf : livres).push(d); });
+    return { livres, conf };
+  }
+  async function planejaSerie(pro, sc, cap) {
+    const n = (cap > 0 && sc.n > cap) ? cap : sc.n, d1 = val("fData"), ds = serieDatas(d1, sc.f, n), r = await checaSerie(pro, ds, val("fHora"), val("fDur"));
+    const extra = r.livres.filter(x => x !== d1), conf = r.conf.filter(x => x !== d1);
+    const txt = "Criar " + (extra.length + 1) + " sessões (" + FREQ[sc.f] + "), de " + dmy(ds[0]) + " a " + dmy(ds[ds.length - 1]) + "?" + (conf.length ? "\n\nDatas com conflito de horário (serão puladas): " + conf.map(x => x.slice(8, 10) + "/" + x.slice(5, 7)).join(", ") : "") + (n < sc.n ? "\n\n(Limitado às " + n + " sessões do pacote.)" : "");
+    if (!confirm(txt)) return null;
+    return { extra, puladas: conf.length };
+  }
+  async function criaSerie(baseRow, datas, hora, dur) {
+    const rows = datas.map(d => { const i = new Date(toISO(d, hora)), f = new Date(i.getTime() + (Number(dur) || 60) * 60000); return Object.assign({}, baseRow, { inicio: i.toISOString(), fim: f.toISOString(), status: "agendada" }); });
+    let n = 0, falhas = 0;
+    for (let k = 0; k < rows.length; k += 40) { const ch = rows.slice(k, k + 40), r = await sb.from("agendamentos").insert(ch); if (!r.error) { n += ch.length; continue; } for (const row of ch) { const r2 = await sb.from("agendamentos").insert(row); if (r2.error) falhas++; else n++; } }
+    return " " + n + " sessão(ões) futura(s) criada(s)" + (falhas ? "; " + falhas + " não puderam ser criadas" : "") + ".";
+  }
   async function salvaCons(statusOverride) {
     const M = C.modal; if (!M) return;
+    let msgF = "";
     if (ehProf()) { // profissional agenda e remarca apenas os próprios pacientes, na própria agenda
       const st0 = statusOverride || val("fSt") || "agendada";
       if (!val("fData") || !val("fHora")) return toast("Informe a data e a hora.", true);
@@ -304,9 +344,13 @@
       if (M.id) await ok(sb.from("agendamentos").update(base).eq("id", M.id));
       else {
         const pid0 = M.pid; if (!pid0) return toast("Escolha um paciente da sua lista (digite o nome e clique no resultado).", true);
-        await ok(sb.from("agendamentos").insert(Object.assign({ empresa_id: M.emp, paciente_id: pid0, profissional_id: S.perfil.profissional_id }, base)));
+        const sc0 = serieCfg(); let extra0 = [];
+        if (sc0) { const pl0 = await planejaSerie(S.perfil.profissional_id, sc0, 0); if (!pl0) return; extra0 = pl0.extra; }
+        const linha0 = Object.assign({ empresa_id: M.emp, paciente_id: pid0, profissional_id: S.perfil.profissional_id }, base);
+        await ok(sb.from("agendamentos").insert(linha0));
+        if (extra0.length) msgF = await criaSerie(linha0, extra0, val("fHora"), val("fDur"));
       }
-      C.anchor = val("fData"); toast("Agendamento salvo."); fecha(); return recarrega(true);
+      C.anchor = val("fData"); toast("Agendamento salvo." + msgF); fecha(); return recarrega(true);
     }
     const nome = val("fPacQ"); if (!nome) return toast("Informe o paciente.", true);
     if (!val("fData") || !val("fHora")) return toast("Informe a data e a hora.", true);
@@ -322,6 +366,8 @@
     }
     if (!emp) { const r = await ok(sb.from("pacientes").select("empresa_id").eq("id", pid).single()); emp = r.empresa_id; }
     const s = S.servs.find(x => norm(x.nome) === norm(val("fServ"))), ini = new Date(toISO(val("fData"), val("fHora"))), fim = new Date(ini.getTime() + (Number(val("fDur")) || 60) * 60000);
+    let extra = [], sc = !M.id ? serieCfg() : null;
+    if (sc) { const mm = (val("fPac") || "").indexOf("novo:") === 0 ? (C.modelos || []).find(x => x.id === val("fPac").slice(5)) : null; const pl = await planejaSerie(val("fPro"), sc, mm ? Number(mm.sessoes_total) : 0); if (!pl) return; extra = pl.extra; }
     let pacoteId = val("fPac") || null, valorSessao = null;
     if (pacoteId && pacoteId.indexOf("novo:") === 0) {
       const m = (C.modelos || []).find(x => x.id === pacoteId.slice(5)); if (!m) return toast("Modelo de pacote não encontrado.", true);
@@ -332,7 +378,7 @@
     }
     const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
     let aid = M.id;
-    if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; }
+    if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; if (extra.length) msgF = await criaSerie(row, extra, val("fHora"), val("fDur")); }
     // pagamentos da sessão
     const existentes = M.id ? (C.cons.find(x => x.id === M.id).pagamentos) : [], mantidos = new Set(pags.filter(x => x.id).map(x => x.id));
     for (const e of existentes) if (!mantidos.has(e.id)) await ok(sb.from("pagamentos").delete().eq("id", e.id));
@@ -341,7 +387,7 @@
       if (p.id) { const upd = Object.assign({}, base); if (p.data !== p.orig) upd.pago_em = new Date(p.data + "T12:00:00-04:00").toISOString(); await ok(sb.from("pagamentos").update(upd).eq("id", p.id)); }
       else await ok(sb.from("pagamentos").insert(Object.assign({ empresa_id: emp, paciente_id: pid, agendamento_id: aid, pago_em: new Date(p.data + "T" + (p.data === hojeISO() ? hhmm(new Date()) : "12:00") + ":00-04:00").toISOString() }, base)));
     }
-    C.anchor = val("fData"); toast(CANC(st) ? "Consulta cancelada: saiu do calendário e ficou registrada na ficha do paciente." : "Salvo."); fecha(); await recarrega(true);
+    C.anchor = val("fData"); toast(CANC(st) ? "Consulta cancelada: saiu do calendário e ficou registrada na ficha do paciente." : "Salvo." + msgF); fecha(); await recarrega(true);
   }
   async function excluiCons() { if (!C.modal || !C.modal.id) return; if (!confirm("Excluir esta consulta definitivamente? (Para só cancelar, use a situação.)")) return;
     await ok(sb.from("pagamentos").delete().eq("agendamento_id", C.modal.id)); await ok(sb.from("agendamentos").delete().eq("id", C.modal.id)); toast("Consulta excluída."); fecha(); await recarrega(true); }
