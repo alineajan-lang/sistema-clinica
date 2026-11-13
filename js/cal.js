@@ -23,7 +23,16 @@
 
   const visP = id => !C.hideP[id];
   const profsAtivos = () => S.profs.filter(p => p.ativo && atendeEm(p));
-  const corProf = id => { const p = S.profs.find(x => x.id === id); if (p && p.cor) return p.cor; const i = S.profs.findIndex(x => x.id === id); return PALETA[(i < 0 ? 0 : i) % PALETA.length]; };
+  // Cada profissional tem sempre a MESMA cor (Essência e Atlas), em qualquer login: a cor sai da posição fixa do nome nesta lista
+  const ORDEM_COR = ["aline araujo", "ana barbara", "ana beatriz", "ana cristina", "ana paula", "cesar alcantara", "dayana flores", "angela maria", "edilcileia lima", "evellyn silva", "florence amanda", "flavia libia", "fernanda manuela", "hethelen awdry", "jhoanne luz", "juliana carolina", "juliane assuncao", "luis filipe", "mayna leal", "rebeca guimaraes", "ricardo oliveira", "rosemeire simoes"];
+  const chaveCor = n => norm(String(n || "")).replace(/^dra?\.\s*/, "").split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
+  const corIdx = i => "hsl(" + Math.round((i * 137.508) % 360) + " " + (i % 3 === 0 ? 72 : 62) + "% " + (i % 2 ? 34 : 43) + "%)";
+  const corProf = id => {
+    const p = S.profs.find(x => x.id === id); if (p && p.cor) return p.cor;
+    let i = ORDEM_COR.indexOf(chaveCor(p && p.nome));
+    if (i < 0) { let hs = 0; for (const ch of String(id)) hs = (hs * 31 + ch.charCodeAt(0)) >>> 0; i = ORDEM_COR.length + (hs % 40); }
+    return corIdx(i);
+  };
   const iniciais = nome => { const n = String(nome || "?").trim().split(" ").filter(Boolean); return ((n[0] || "?").charAt(0) + (n.length > 1 ? n[n.length - 1].charAt(0) : (n[0] || "").charAt(1))).toUpperCase(); };
   const avatar = p => '<span class="avatar" style="--c:' + corProf(p.id) + '">' + esc(iniciais(p.nome)) + "</span>";
   const statusIcone = st => ({ agendada: "○", confirmada: "✓", realizada: "✓✓", faltou: "✕", cancelada_paciente: "–", cancelada_clinica: "–" }[st] || "");
@@ -396,16 +405,27 @@
   function abreBlq(id, preset) {
     preset = preset || {}; const b = id ? C.blq.find(x => x.id === id) : null; if (!ehGestao()) return;
     const ini = b ? new Date(b.inicio) : null, fim = b ? new Date(b.fim) : null;
-    const corpo = '<div class="sect"><div class="field"><label>Profissional</label><select id="bPro">' + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === (b ? b.profissional_id : preset.pro))).join("") + "</select></div>" +
+    const corpo = '<div class="sect"><div class="field"><label>Profissional</label><select id="bPro">' + (b ? "" : '<option value="*">Todos os profissionais</option>') + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === (b ? b.profissional_id : preset.pro))).join("") + "</select></div>" +
       '<div class="three"><div class="field"><label>Data</label><input id="bData" type="date" value="' + esc(b ? diaDe(b.inicio) : (preset.data || C.anchor)) + '"></div><div class="field"><label>Início</label><input id="bIni" type="time" value="' + esc(b ? hhmm(b.inicio) : (preset.hora || "08:00")) + '"></div><div class="field"><label>Fim</label><input id="bFim" type="time" value="' + esc(b ? hhmm(b.fim) : fromMin(toMin(preset.hora || "08:00") + 60)) + '"></div></div>' +
       '<label class="chk" style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="bDia"' + (b && b.dia_todo ? " checked" : "") + '> Dia todo</label><div class="field"><label>Motivo</label><input id="bMot" value="' + esc(b ? b.comentario : "") + '" placeholder="Reunião, almoço, férias, sublocação…"></div></div>';
     C.modal = { blq: id || null };
     drawer(b ? "Editar bloqueio" : "Bloquear horário", corpo, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button>' + (b ? '<button class="btn btn-danger" data-act="delblq">Excluir</button>' : "") + '<button class="btn btn-primary" data-act="saveblq" style="flex:1">Salvar</button>');
   }
   async function salvaBlq() {
-    const dia = val("bData"), t = $("bDia").checked, row = { profissional_id: val("bPro"), inicio: new Date(toISO(dia, t ? "00:00" : val("bIni"))).toISOString(), fim: new Date(toISO(t ? addDias(dia, 1) : dia, t ? "00:00" : val("bFim"))).toISOString(), dia_todo: t, comentario: val("bMot") || null };
+    const dia = val("bData"), t = $("bDia").checked, pro = val("bPro");
+    if (!dia) return toast("Informe a data do bloqueio.", true);
+    if (!t && (!val("bIni") || !val("bFim"))) return toast("Informe o horário de início e de fim.", true);
     if (!t && toMin(val("bFim")) <= toMin(val("bIni"))) return toast("O fim deve ser depois do início.", true);
-    await ok(C.modal.blq ? sb.from("bloqueios").update(row).eq("id", C.modal.blq) : sb.from("bloqueios").insert(row)); toast("Bloqueio salvo."); fecha(); await recarrega(true);
+    if (!pro) return toast("Escolha o profissional.", true);
+    const ini = new Date(toISO(dia, t ? "00:00" : val("bIni"))), fim = new Date(toISO(t ? addDias(dia, 1) : dia, t ? "00:00" : val("bFim")));
+    if (isNaN(ini) || isNaN(fim)) return toast("Data ou horário inválido.", true);
+    const base = { inicio: ini.toISOString(), fim: fim.toISOString(), dia_todo: t, comentario: val("bMot") || null };
+    const ids = pro === "*" ? S.profs.filter(p => p.ativo && atendeEm(p)).map(p => p.id) : [pro];
+    try {
+      if (C.modal.blq) await ok(sb.from("bloqueios").update(Object.assign({ profissional_id: pro }, base)).eq("id", C.modal.blq));
+      else await ok(sb.from("bloqueios").insert(ids.map(id => Object.assign({ profissional_id: id }, base))));
+    } catch (e) { return toast("Não foi possível salvar o bloqueio: " + (e && e.message ? e.message : e), true); }
+    toast("Bloqueio salvo" + (ids.length > 1 && !C.modal.blq ? " para " + ids.length + " profissionais." : ".")); fecha(); await recarrega(true);
   }
 
   // ---------- eventos ----------
@@ -416,7 +436,7 @@
     sidetoggle() { C.sideOpen = !C.sideOpen; pinta(); }, minipick(el) { C.anchor = el.dataset.d; recarrega(); },
     minav(el) { const [y, m] = C.miniM.split("-").map(Number), d = new Date(Date.UTC(y, m - 1 + (+el.dataset.n), 1)); C.miniM = d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1); C.miniFor = C.anchor; pinta(); },
     agtoggle(el) { C.hideP[el.dataset.id] = !el.checked; salvaPrefs(); pinta(); }, agall() { C.hideP = {}; salvaPrefs(); pinta(); },
-    cons(el, ev) { ev.stopPropagation(); abreCons(el.dataset.id); }, newcons() { abreCons(null, { data: C.anchor }); }, newblq() { abreBlq(null, { pro: profsAtivos()[0]?.id }); },
+    cons(el, ev) { ev.stopPropagation(); abreCons(el.dataset.id); }, newcons() { abreCons(null, { data: C.anchor }); }, newblq() { abreBlq(null, { pro: "*" }); },
     blq(el, ev) { ev.stopPropagation(); abreBlq(el.dataset.id); },
     slot(el, ev) { if (!(ehGestao() || ehProf()) || ev.target.closest(".ev,.bl")) return; const r = el.getBoundingClientRect(), y = ev.clientY - r.top, mins = Math.round((HSTART * 60 + y / C.hh * 60) / 15) * 15; abreCons(null, { data: el.dataset.d, hora: fromMin(Math.max(0, Math.min(1425, mins))), pro: el.dataset.p || undefined }); },
     closemodal() { fecha(); }, savecons() { salvaCons().catch(e => toast(e.message, true)); }, quick(el) { const s = el.dataset.s; if ($("fSt")) $("fSt").value = s; salvaCons(s).catch(e => toast(e.message, true)); },
