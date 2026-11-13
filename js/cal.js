@@ -17,8 +17,8 @@
   const CANC = s => String(s || "").indexOf("cancelada") === 0;
   const STCHIP = { agendada: "info", confirmada: "info", realizada: "ok", faltou: "late", cancelada_paciente: "", cancelada_clinica: "" };
   const prefs = (() => { try { return JSON.parse(localStorage.getItem("calprefs") || "{}"); } catch (e) { return {}; } })();
-  const salvaPrefs = () => { try { localStorage.setItem("calprefs", JSON.stringify({ hideP: C.hideP, hh: C.hh, view: C.view })); } catch (e) {} };
-  const C = { anchor: hojeISO(), view: prefs.view || "prof", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null };
+  const salvaPrefs = () => { try { localStorage.setItem("calprefs", JSON.stringify({ hideP: C.hideP, hh: C.hh, view: C.view, mv: C.mv })); } catch (e) {} };
+  const C = { anchor: hojeISO(), view: prefs.view || "prof", mv: prefs.mv || "lista", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null };
   window.CAL = C;
 
   const visP = id => !C.hideP[id];
@@ -47,7 +47,7 @@
     const ini = new Date(r.inicio), fim = new Date(r.fim);
     return { id: r.id, empresaId: r.empresa_id, profissionalId: r.profissional_id, pacienteId: r.paciente_id, pacienteNome: r.paciente ? r.paciente.nome : "Paciente", data: diaDe(r.inicio), hora: hhmm(r.inicio),
       duracao: Math.max(5, Math.round((fim - ini) / 60000)), servico: r.servico ? r.servico.nome : "", servicoId: r.servico_id, valor: Number(r.valor) || 0, status: r.status,
-      pagamentos: (r.pagamentos || []).map(p => ({ id: p.id, valor: Number(p.valor), forma: p.forma, data: diaDe(p.pago_em) })), obs: r.comentario || "", pacoteId: r.pacote_id, pacoteNum: r.pacote ? r.pacote.numero : null };
+      pagamentos: (r.pagamentos || []).map(p => ({ id: p.id, valor: Number(p.valor), forma: p.forma, data: diaDe(p.pago_em) })), obs: r.comentario || "", modalidade: r.modalidade || "presencial", pacoteId: r.pacote_id, pacoteNum: r.pacote ? r.pacote.numero : null };
   }
   async function carrega(force) {
     const m0 = C.anchor.slice(0, 7) + "-01", ini = monday(addDias(m0, -7)), fim = addDias(ini, 49);
@@ -55,7 +55,7 @@
     // mês do anchor (+ margens da semana) — recarrega quando sair dele
     const a = toISO(ini, "00:00"), b = toISO(fim, "00:00");
     const [ags, bl] = await Promise.all([
-      ok(sb.from("agendamentos").select("id,empresa_id,paciente_id,profissional_id,servico_id,pacote_id,inicio,fim,status,valor,comentario,paciente:pacientes(nome),servico:servicos(nome),pacote:pacotes(numero),pagamentos(id,valor,forma,pago_em)").gte("inicio", a).lt("inicio", b).order("inicio").limit(3000)),
+      ok(sb.from("agendamentos").select("*,paciente:pacientes(nome),servico:servicos(nome),pacote:pacotes(numero),pagamentos(id,valor,forma,pago_em)").gte("inicio", a).lt("inicio", b).order("inicio").limit(3000)),
       ok(sb.from("bloqueios").select("*").lt("inicio", b).gt("fim", a).limit(3000))]);
     C.cons = ags.map(mapAg); C.blq = bl; C.range = [ini, fim];
     await carregaPk(ags);
@@ -117,7 +117,7 @@
     rows.forEach(c => {
       if (c.data !== cur) { cur = c.data; out += '<div class="tr foot" style="grid-template-columns:1fr;min-width:0;text-transform:capitalize">' + esc(diaSemana(c.data)) + (c.data === hojeISO() ? " · hoje" : "") + "</div>"; }
       const pr = S.profs.find(p => p.id === c.profissionalId) || { nome: "Profissional", id: c.profissionalId }, pb = pagBadge(c);
-      out += '<div class="tr click cols-lista" data-act="cons" data-id="' + esc(c.id) + '"><div>' + esc(c.hora) + " – " + esc(fromMin(toMin(c.hora) + c.duracao)) + '</div><div><div class="name">' + esc(c.pacienteNome) + "</div>" + (c.obs ? '<div class="meta">📝 ' + esc(c.obs) + "</div>" : "") + "</div><div>" + esc(c.servico) + (c.pacoteNum ? '<div class="meta">Pacote #' + c.pacoteNum + ' ' + (pkDe(c) ? pkValHtml(pkDe(c).valor) + (pkDe(c).pos[c.id] ? ' · sessão ' + pkDe(c).pos[c.id] + '/' + pkDe(c).total : '') : '') + '</div>' : '') + '</div><div style="display:flex;align-items:center;gap:8px;min-width:0">' + avatar(pr) + "<span>" + esc(pr.nome) + '</span></div><div><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + '</span></div><div class="num">' +
+      out += '<div class="tr click cols-lista" data-act="cons" data-id="' + esc(c.id) + '"><div>' + esc(c.hora) + " – " + esc(fromMin(toMin(c.hora) + c.duracao)) + '</div><div><div class="name">' + esc(c.pacienteNome) + "</div>" + (c.obs ? '<div class="meta">📝 ' + esc(c.obs) + "</div>" : "") + "</div><div>" + esc(c.servico) + (c.modalidade === "online" ? ' <span class="chip info">💻 online</span>' : "") + (c.pacoteNum ? '<div class="meta">Pacote #' + c.pacoteNum + ' ' + (pkDe(c) ? pkValHtml(pkDe(c).valor) + (pkDe(c).pos[c.id] ? ' · sessão ' + pkDe(c).pos[c.id] + '/' + pkDe(c).total : '') : '') + '</div>' : '') + '</div><div style="display:flex;align-items:center;gap:8px;min-width:0">' + avatar(pr) + "<span>" + esc(pr.nome) + '</span></div><div><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + '</span></div><div class="num">' +
         ((c.valor > 0 && !CANC(c.status) && c.status !== "faltou") ? '<span class="chip ' + ((pb.txt === "pago" || pb.txt === "pacote") ? "ok" : "warn") + '">' + pb.txt + " · " + brl(c.valor) + "</span>" : "—") + "</div></div>";
     });
     return out + "</div>";
@@ -139,25 +139,27 @@
         if (i.t === "b") { const todo = i.r.a === 0 && i.r.b === 1440, nome = pro ? "Horário bloqueado" : (i.b.comentario || "Bloqueio"); out += '<div class="mrow mblk" data-act="blq" data-id="' + esc(i.b.id) + '"><div class="mt">' + (todo ? "<b>Dia</b><small>todo</small>" : "<b>" + fromMin(i.r.a) + "</b><small>" + fromMin(i.r.b) + "</small>") + '</div><div class="mb"><div class="mn">🔒 ' + esc(nome) + "</div>" + (pro ? "" : '<div class="ms">' + (i.n > 1 ? i.n + " agendas" : esc(nomeC(proNome(i.b.profissional_id)))) + "</div>") + "</div><div></div></div>"; return; }
         const c = i.c, fim = fromMin(toMin(c.hora) + c.duracao), pb = pagBadge(c), pr = proNome(c.profissionalId);
         const pay = (c.valor > 0 && !CANC(c.status) && c.status !== "faltou" && gestao) ? '<span class="chip ' + ((pb.txt === "pago" || pb.txt === "pacote") ? "ok" : "warn") + '">' + pb.txt + "</span>" : "";
-        out += '<div class="mrow" data-act="cons" data-id="' + esc(c.id) + '" style="--c:' + corProf(c.profissionalId) + '"><div class="mt"><b>' + esc(c.hora) + "</b><small>" + esc(fim) + '</small></div><div class="mb"><div class="mn">' + esc(c.pacienteNome) + emk(c) + '</div><div class="ms">' + (pro ? "" : esc(nomeC(pr)) + " · ") + esc(c.servico || "Consulta") + (c.pacoteNum ? " · pacote #" + c.pacoteNum : "") + (c.obs ? " · 📝" : "") + '</div></div><div class="mr"><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + "</span>" + pay + "</div></div>";
+        out += '<div class="mrow" data-act="cons" data-id="' + esc(c.id) + '" style="--c:' + corProf(c.profissionalId) + '"><div class="mt"><b>' + esc(c.hora) + "</b><small>" + esc(fim) + '</small></div><div class="mb"><div class="mn">' + esc(c.pacienteNome) + emk(c) + (c.modalidade === "online" ? ' <span class="chip info onl2">💻 online</span>' : "") + '</div><div class="ms">' + (pro ? "" : esc(nomeC(pr)) + " · ") + esc(c.servico || "Consulta") + (c.pacoteNum ? " · pacote #" + c.pacoteNum : "") + (c.obs ? " · 📝" : "") + '</div></div><div class="mr"><span class="chip ' + (STCHIP[c.status] || "") + '">' + esc(STATUS[c.status] || c.status) + "</span>" + pay + "</div></div>";
       });
     });
     return out + "</div>";
   }
 
   function html() {
-    if (isMob() && C.view === "lista") C.view = "semana";
-    const HH = C.hh; document.documentElement.style.setProperty("--hh", HH + "px");
+    const mobile = isMob();
+    if (mobile) { if (["lista", "dia", "sem"].indexOf(C.mv) === -1) C.mv = "lista"; C.view = C.mv === "sem" ? "semana" : "prof"; }
+    const HH = (mobile && C.mv === "sem") ? 46 : C.hh; document.documentElement.style.setProperty("--hh", HH + "px");
     const days = rangeDays(), hoje = hojeISO(), dia1 = C.view === "prof", cqn = norm(C.cq);
     const title = dia1 ? diaSemana(days[0]) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
     const gestao = ehGestao();
     const wk = (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
-    const strip7 = C.view === "lista" ? "" : '<div class="daystrip">' + wk.map(d => '<button type="button" data-act="goday" data-d="' + d + '" class="' + (dia1 && d === C.anchor ? "sel " : "") + (d === hoje ? "today" : "") + '"><small>' + DOW[dowOf(d)] + "</small>" + diaN(d) + "</button>").join("") + "</div>";
+    const strip7 = '<div class="daystrip">' + wk.map(d => '<button type="button" data-act="pickday" data-d="' + d + '" class="' + (d === C.anchor ? "sel " : "") + (d === hoje ? "today" : "") + '"><small>' + DOW[dowOf(d)] + "</small>" + diaN(d) + "</button>").join("") + "</div>";
     const tb = '<div class="toolbar"><button class="btn btn-ghost only-narrow tb-ag" data-act="sidetoggle">Agendas</button><button class="btn btn-ghost tb-hoje" data-act="hoje">Hoje</button><button class="btn btn-ghost tb-prev" data-act="nav" data-n="-1" aria-label="Anterior">‹</button><button class="btn btn-ghost tb-next" data-act="nav" data-n="1" aria-label="Próximo">›</button>' +
       '<div class="range tb-range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" class="tb-search" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
       (C.view === "lista" ? "" : '<div class="seg tb-zoom"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
+      '<div class="seg tb-mv">' + [["lista", "Horário"], ["dia", "Dia"], ["sem", "Semana"]].map(m => '<button data-act="mv" data-m="' + m[0] + '" class="' + (C.mv === m[0] ? "on" : "") + '">' + m[1] + "</button>").join("") + "</div>" +
       '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
-      (C.view === "prof" && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
+      (C.view === "prof" && !mobile && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao || ehProf() ? '<button class="btn btn-primary tb-new" data-act="newcons">+ Nova consulta</button>' : "") + strip7 + "</div>";
     const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
@@ -165,18 +167,18 @@
     const achou = cqn ? vis.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1).length : 0;
     const strip = '<div class="strip"><span><b>' + vis.length + "</b> consulta" + (vis.length === 1 ? "" : "s") + " no período</span>" + (gestao ? "<span>Recebido <b>" + brl(recv) + "</b></span><span>A receber (realizadas) <b>" + brl(aber) + "</b></span>" : "") + (cqn ? "<span><b>" + achou + "</b> encontrada(s) para “" + esc(C.cq) + "”</span>" : (gestao ? "<span>Clique em um horário vazio para agendar.</span>" : "")) + "</div>";
     let corpo;
-    if (isMob()) corpo = mobLista(cons, days, cqn);
-    else if (C.view === "lista") corpo = listaHtml(cqn ? cons.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1) : cons);
+    if (mobile && C.mv === "lista") corpo = mobLista(cons, days, cqn);
+    else if (!mobile && C.view === "lista") corpo = listaHtml(cqn ? cons.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1) : cons);
     else {
       let defs;
-      if (C.view === "prof") {
+      if (C.view === "prof" && !mobile) {
         const base = S.profs.filter(p => p.ativo && visP(p.id) && (atendeEm(p) || cons.some(c => c.profissionalId === p.id)));
         const com = base.filter(p => cons.some(c => c.profissionalId === p.id));
         defs = ((C.allCols || !com.length) ? base : com).map(p => ({ d: days[0], p }));
       } else defs = days.map(d => ({ d, p: null }));
       if (!defs.length) corpo = '<div class="empty"><b>Nenhuma agenda marcada.</b><br>Marque ao menos um profissional em <b>Agendas</b>.</div>';
       else {
-        const n = defs.length, total = (HEND - HSTART) * HH, mob = window.innerWidth < 700, minc = mob ? (C.view === "prof" ? Math.min(360, window.innerWidth - 70) : 112) : (C.view === "prof" ? 190 : 150), grid = (mob ? "42px" : "52px") + " repeat(" + n + ",minmax(" + minc + "px,1fr))";
+        const n = defs.length, total = (HEND - HSTART) * HH, mob = mobile, minc = mob ? 0 : (C.view === "prof" ? 190 : 150), gw = mob ? (C.mv === "sem" ? 34 : 42) : 52, grid = gw + "px repeat(" + n + ",minmax(" + minc + "px,1fr))";
         const head = '<div class="calhead" style="grid-template-columns:' + grid + '"><div></div>' + defs.map(df => {
           if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + " " + etag(df.p) + "</small></span></div>";
           return '<div class="dh' + (df.d === hoje ? " today" : "") + '" data-act="goday" data-d="' + df.d + '"><small>' + DOW[dowOf(df.d)] + "</small>" + (df.d === hoje ? "<b>" + diaN(df.d) + "</b>" : diaN(df.d)) + "</div>";
@@ -195,16 +197,16 @@
             if (C.view === "semana" && e._n >= 4) { if (vistos[e._cs]) return ""; vistos[e._cs] = 1; const grp = evs.filter(x => x._cs === e._cs).sort((x, y) => toMin(x.hora) - toMin(y.hora)), nomes = [...new Set(grp.map(x => String(proNome(x.profissionalId)).split(" ")[0]))]; return '<div class="ev many" data-act="goday" data-d="' + d + '" style="--c:var(--accent);top:' + ((e._cs - HSTART * 60) / 60 * HH) + "px;height:" + Math.max(58, (e._ce - e._cs) / 60 * HH - 2) + 'px;left:1px;width:calc(100% - 3px)" title="' + esc(grp.map(x => x.hora + " · " + proNome(x.profissionalId) + " · " + x.pacienteNome).join("\n")) + '"><b class="evn">' + e._cn + ' atendimentos</b><span class="evm" style="max-height:none"><span>' + esc(nomes.join(", ")) + '</span></span><span class="evm" style="max-height:none;font-weight:700"><span>clique: ver por profissional</span></span></div>'; }
             const s = toMin(e.hora), top = (s - HSTART * 60) / 60 * HH, hgt = Math.max(26, e.duracao / 60 * HH - 2), w = 100 / e._n, left = e._lane * w, fim = fromMin(s + e.duracao), pb = pagBadge(e), nome = e.pacienteNome;
             const pay = (e.valor > 0 && !CANC(e.status) && e.status !== "faltou" && gestao) ? '<i class="pay' + pb.cls + '">' + pb.txt + "</i>" : "";
-            const nm2 = (e._n >= 3) ? String(nome).split(" ")[0] : nome, dim = (cqn && norm(nome).indexOf(cqn) === -1); let inner;
+            const nm2 = (e._n >= 3 || (mobile && C.mv === "sem")) ? String(nome).split(" ")[0] : nome, dim = (cqn && norm(nome).indexOf(cqn) === -1); let inner;
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
             else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + " " + (pkDe(e) ? pkValHtml(pkDe(e).valor) : "") + (pkDe(e) && pkDe(e).pos[e.id] ? " sessão " + pkDe(e).pos[e.id] + "/" + pkDe(e).total : "") + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
-            return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + inner + "</div>";
+            return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + (e.modalidade === "online" ? '<i class="onl" title="Atendimento online">💻</i>' : "") + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
           return '<div class="col' + (d === hoje ? " today" : "") + '" data-act="slot" data-d="' + d + '"' + (df.p ? ' data-p="' + esc(df.p.id) + '"' : "") + ' style="height:' + total + 'px">' + blHtml + evHtml + line + "</div>";
         }).join("");
-        corpo = '<div class="calwrap" id="calwrap"><div class="cal" style="min-width:' + (52 + n * minc) + 'px">' + head + '<div class="calbody" style="grid-template-columns:' + grid + '">' + gutter + cols + "</div></div></div>";
+        corpo = '<div class="calwrap' + (mobile ? " mv-" + C.mv : "") + '" id="calwrap"><div class="cal" style="min-width:' + (gw + n * minc) + 'px">' + head + '<div class="calbody" style="grid-template-columns:' + grid + '">' + gutter + cols + "</div></div></div>";
       }
     }
     return '<div class="agwrap">' + side + '<div class="agmain">' + tb + strip + corpo + "</div></div>";
@@ -255,7 +257,7 @@
     const c = id ? C.cons.find(x => x.id === id) : null; preset = preset || {}; const gestao = ehGestao(), prof = ehProf();
     if (!id && !gestao && !prof) return;
     const defPro = c ? c.profissionalId : (preset.pro || profsAtivos().filter(p => visP(p.id))[0]?.id || profsAtivos()[0]?.id);
-    const d = { profissionalId: defPro, pacienteId: c ? c.pacienteId : (preset.pid || ""), pacienteNome: c ? c.pacienteNome : (preset.nome || ""), data: c ? c.data : (preset.data || hojeISO()), hora: c ? c.hora : (preset.hora || "08:00"), duracao: c ? c.duracao : 60, servicoId: c ? c.servicoId : "", servico: c ? c.servico : "", valor: c ? c.valor : 0, status: c ? c.status : "agendada", pags: c ? c.pagamentos : [], obs: c ? c.obs : "" };
+    const d = { profissionalId: defPro, pacienteId: c ? c.pacienteId : (preset.pid || ""), pacienteNome: c ? c.pacienteNome : (preset.nome || ""), data: c ? c.data : (preset.data || hojeISO()), hora: c ? c.hora : (preset.hora || "08:00"), duracao: c ? c.duracao : 60, servicoId: c ? c.servicoId : "", servico: c ? c.servico : "", valor: c ? c.valor : 0, status: c ? c.status : "agendada", pags: c ? c.pagamentos : [], obs: c ? c.obs : "", modalidade: c ? (c.modalidade || "presencial") : "presencial" };
     C.modal = { id: id || null, pid: d.pacienteId, emp: c ? c.empresaId : null };
     const pro0 = S.profs.find(p => p.id === d.profissionalId) || { id: d.profissionalId, nome: "Profissional" }, vv = Number(d.valor) || 0, tot = d.pags.reduce((a, x) => a + x.valor, 0), pst = vv <= 0 ? "Sem valor" : (tot >= vv ? "Paga" : (tot > 0 ? "Pagamento parcial" : "Não paga"));
     const bloqPac = (prof && c) ? " disabled" : "", bloqPro = prof ? " disabled" : "", bloq = "";
@@ -266,7 +268,7 @@
       '<div class="two"><div class="field"><label for="fPro">Profissional</label><select id="fPro"' + bloqPro + ">" + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === d.profissionalId)).join("") + '</select></div><div class="field"><label for="fSt">Situação</label><select id="fSt">' + Object.entries(STATUS).map(([k, t]) => opt(k, t, d.status === k)).join("") + "</select></div></div>" +
       '<div class="three"><div class="field"><label for="fData">Data</label><input id="fData" type="date" value="' + esc(d.data) + '"' + bloq + '></div><div class="field"><label for="fHora">Hora</label><input id="fHora" type="time" step="900" value="' + esc(d.hora) + '"' + bloq + '></div><div class="field"><label for="fDur">Duração (min)</label><input id="fDur" type="number" step="5" min="5" value="' + esc(d.duracao) + '"' + bloq + "></div></div>" +
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
-      '<div class="two"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + "></div></div></div>" +
+      '<div class="three"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + '></div><div class="field"><label for="fMod">Atendimento</label><select id="fMod">' + opt("presencial", "Presencial", d.modalidade !== "online") + opt("online", "💻 Online", d.modalidade === "online") + "</select></div></div></div>" +
       (gestao ? '<div class="sect"><h3>Pagamento</h3><div class="field"><label for="fPac">Pacote</label><select id="fPac"><option value="">— sem pacote —</option></select></div><div id="payBox">' + d.pags.map(payRow).join("") + '</div><div id="paySum" class="meta"></div><div><button type="button" class="btn btn-ghost btn-sm" data-act="payadd">+ Registrar pagamento</button></div></div>' : "") +
       pacoteBloco(c) +
       '<div class="sect"><h3>Notas</h3><div class="field"><textarea id="fObs" placeholder="Adicionar notas">' + esc(d.obs) + "</textarea></div></div>" + (c && gestao ? '<div><button class="btn btn-danger btn-sm" data-act="delcons">Excluir consulta</button></div>' : "");
@@ -298,7 +300,7 @@
       if (!val("fData") || !val("fHora")) return toast("Informe a data e a hora.", true);
       if (!CANC(st0)) { const cf0 = conflito(M.id, S.perfil.profissional_id, val("fData"), val("fHora"), val("fDur")); if (cf0) { aviso(); return toast("Você já tem um paciente nesse horário.", true); } }
       const s0 = S.servs.find(x => norm(x.nome) === norm(val("fServ"))), ini0 = new Date(toISO(val("fData"), val("fHora"))), fim0 = new Date(ini0.getTime() + (Number(val("fDur")) || 60) * 60000);
-      const base = { servico_id: s0 ? s0.id : null, inicio: ini0.toISOString(), fim: fim0.toISOString(), status: st0, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null };
+      const base = { servico_id: s0 ? s0.id : null, inicio: ini0.toISOString(), fim: fim0.toISOString(), status: st0, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
       if (M.id) await ok(sb.from("agendamentos").update(base).eq("id", M.id));
       else {
         const pid0 = M.pid; if (!pid0) return toast("Escolha um paciente da sua lista (digite o nome e clique no resultado).", true);
@@ -328,7 +330,7 @@
       const np2 = await ok(sb.from("pacotes").insert({ empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), numero: ((mx[0] || {}).numero || 0) + 1, tipo: m.tipo, sessoes_total: m.sessoes_total, valor: m.valor, valor_pago: 0, vendido_em: hojeISO() }).select("id").single());
       pacoteId = np2.id; valorSessao = Math.round(Number(m.valor) / Number(m.sessoes_total) * 100) / 100;
     }
-    const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null };
+    const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
     let aid = M.id;
     if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; }
     // pagamentos da sessão
@@ -363,7 +365,7 @@
   // ---------- eventos ----------
   const acoes = {
     hoje() { C.anchor = hojeISO(); recarrega(); }, nav(el) { const n = +el.dataset.n; C.anchor = addDias(C.anchor, C.view === "prof" ? n : n * 7); recarrega(); },
-    view(el) { C.view = el.dataset.v; salvaPrefs(); recarrega(); }, goday(el) { C.anchor = el.dataset.d; C.view = "prof"; recarrega(); },
+    view(el) { C.view = el.dataset.v; salvaPrefs(); recarrega(); }, mv(el) { C.mv = el.dataset.m; salvaPrefs(); recarrega(); }, pickday(el) { C.anchor = el.dataset.d; recarrega(); }, goday(el) { C.anchor = el.dataset.d; C.view = "prof"; if (isMob()) { C.mv = "dia"; salvaPrefs(); } recarrega(); },
     zoom(el) { C.hh = Math.min(112, Math.max(40, C.hh + (+el.dataset.n) * 12)); salvaPrefs(); pinta(); }, allcols() { C.allCols = !C.allCols; pinta(); },
     sidetoggle() { C.sideOpen = !C.sideOpen; pinta(); }, minipick(el) { C.anchor = el.dataset.d; recarrega(); },
     minav(el) { const [y, m] = C.miniM.split("-").map(Number), d = new Date(Date.UTC(y, m - 1 + (+el.dataset.n), 1)); C.miniM = d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1); C.miniFor = C.anchor; pinta(); },

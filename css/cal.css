@@ -303,3 +303,23 @@ button,a,.stab,.col,.dh,.tr.click,tr.click,.minigrid button,.ev,.bl{touch-action
 .mrow.mblk{background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,var(--surface) 8px 16px);color:var(--ink-muted);min-height:48px}.mrow.mblk .mn{font-weight:700;color:var(--ink)}
 .mempty{text-align:center;color:var(--ink-muted);padding:34px 10px;line-height:1.6}
 @media (max-width:700px){.tb-view button[data-v="lista"],.tb-all{display:none}}
+
+/* ---- modo de visualização no celular + atendimento online ---- */
+.tb-mv{display:none}
+.ev .onl{position:absolute;right:22px;top:2px;font-size:11px;font-style:normal;line-height:1}
+.chip.onl2{font-size:11px;padding:0 7px}
+@media (max-width:700px){
+  .tb-mv{display:flex;order:6;flex:1}.tb-mv button{flex:1;min-height:46px}
+  .tb-view{display:none!important}
+  .calwrap{scroll-snap-type:none}
+  .calwrap.mv-sem .cal{min-width:0!important}
+  .mv-sem .dh{padding:6px 0;font-size:12px}.mv-sem .dh small{font-size:9.5px;letter-spacing:0}
+  .mv-sem .hl{font-size:9.5px;right:3px}
+  .mv-sem .ev{padding:2px 3px;border-radius:4px;font-size:10px}
+  .mv-sem .ev .evn{font-size:10px;line-height:1.1;-webkit-line-clamp:4;padding-right:0}
+  .mv-sem .ev .evn small,.mv-sem .ev .evt,.mv-sem .ev .evm,.mv-sem .ev .emk,.mv-sem .ev .pay,.mv-sem .ev .onl{display:none}
+  .mv-sem .ev.cE{box-shadow:inset 4px 0 0 #6f8a52;padding-left:7px}.mv-sem .ev.cA{box-shadow:inset 4px 0 0 #c9a24a;padding-left:7px}
+  .mv-sem .bl{font-size:10px;padding:2px;text-align:center}.mv-sem .bl .blh,.mv-sem .bl b{display:none}.mv-sem .bl::after{content:"🔒"}
+  .mv-sem .ev .evn{overflow-wrap:normal;word-break:normal}
+  .mv-dia .ev{padding-right:6px}
+}
