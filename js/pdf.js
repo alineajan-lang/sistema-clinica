@@ -2,9 +2,9 @@
 window.PDFDOC = (function () {
   const TEMAS = {
     atlas: { nome: "Clínica Atlas", logo: "img/logo-atlas.png", logoW: 34, fundo: [246, 242, 234], tinta: [28, 30, 38], suave: [95, 97, 112], dest: [153, 125, 72], rot: [153, 125, 72], borda: [214, 206, 190], cartao: [250, 247, 240], marca: [228, 220, 200], marcaTipo: "globo",
-      end: "R. Verônica Cristina, 46 · Manaus — AM", contato: ["Telefone (92) 98494-6232", "contato@clinicaatlas.com.br"] },
+      contato: ["Telefone (92) 98494-6232"] },
     essencia: { nome: "Clínica Essência", logo: "img/logo-essencia.png", logoW: 52, fundo: [255, 249, 237], tinta: [43, 43, 43], suave: [110, 110, 100], dest: [111, 138, 82], rot: [201, 111, 132], borda: [228, 223, 210], cartao: [255, 252, 244], marca: [236, 242, 228], marcaTipo: "folhas",
-      end: "R. Verônica Cristina, 46 · Manaus — AM", contato: ["(92) 98841-1244", "clinicaessenciapsicologica@gmail.com.br"] }
+      contato: ["Telefone (92) 98841-1244"] }
   };
   const cache = {};
   async function binB64(url) { if (cache[url]) return cache[url]; const b = new Uint8Array(await (await fetch(url)).arrayBuffer()); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return (cache[url] = btoa(s)); }
@@ -30,10 +30,10 @@ window.PDFDOC = (function () {
     }
     function cabecalho() {
       doc.setFillColor(T.fundo[0], T.fundo[1], T.fundo[2]); doc.rect(0, 0, 210, 40, "F"); doc.addImage(logo, "PNG", 14, Math.max(2, (40 - lh) / 2), T.logoW, lh);
-      fonte("Mulish", "normal", 8.4, T.suave); doc.text(T.end, MR, 17, { align: "right" }); doc.text(T.contato[0], MR, 22.4, { align: "right" }); doc.text(T.contato[1], MR, 27.8, { align: "right" });
+      fonte("Mulish", "normal", 9.5, T.suave); doc.text(T.contato[0], MR, 21, { align: "right" });
       doc.setDrawColor(T.dest[0], T.dest[1], T.dest[2]); doc.setLineWidth(0.6); doc.line(0, 40, 210, 40);
     }
-    function rodape() { doc.setDrawColor(T.borda[0], T.borda[1], T.borda[2]); doc.setLineWidth(0.3); doc.line(ML, 284, MR, 284); fonte("Mulish", "normal", 7.6, T.suave); doc.text(T.nome + " · Grupo Essária", 105, 289, { align: "center" }); }
+    function rodape() { doc.setDrawColor(T.borda[0], T.borda[1], T.borda[2]); doc.setLineWidth(0.3); doc.line(ML, 284, MR, 284); fonte("Mulish", "normal", 7.6, T.suave); doc.text(T.nome, 105, 289, { align: "center" }); }
     function novaPagina(primeira) { if (!primeira) doc.addPage(); marca(); cabecalho(); rodape(); }
     const ctrl = d.tipo === "receita" && d.ctrl, vias = ctrl ? ["1ª via · Farmácia", "2ª via · Paciente"] : [""];
     vias.forEach((via, vi) => {
@@ -110,6 +110,12 @@ window.PDFDOC = (function () {
   }
   const nomeArq = d => (titulo(d).normalize("NFD").replace(/[̀-ͯ]/g, "") + " - " + String(d.pac.nome || "").replace(/[\\\/:*?"<>|]/g, "") + " - " + dbr(d.data).replace(/\//g, "-") + ".pdf");
   function baixar(blob, nome) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
-  function imprimir(blob) { const url = URL.createObjectURL(blob), f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"; f.src = url; document.body.append(f); f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(url, "_blank"); } setTimeout(() => { f.remove(); URL.revokeObjectURL(url); }, 60000); }; }
-  return { gerar, baixar, imprimir, nomeArq, titulo, relTitulo, TEMAS, DOC_LEE, dataExtensa };
+  // Abre o PDF numa aba nova (aberta NO CLIQUE, para o navegador não bloquear) e chama a impressão. Se não der, baixa o arquivo.
+  function janelaImpressao() { try { const w = window.open("", "_blank"); if (w) { w.document.write("<p style='font:16px sans-serif;padding:24px'>Preparando o documento para impressão…</p>"); } return w; } catch (e) { return null; } }
+  function imprimir(blob, w, nome) {
+    const url = URL.createObjectURL(blob);
+    if (w && !w.closed) { w.location.href = url; setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 1800); setTimeout(() => URL.revokeObjectURL(url), 120000); return true; }
+    baixar(blob, nome || "documento.pdf"); toast("O navegador bloqueou a janela de impressão. O PDF foi baixado: abra o arquivo e imprima.", true); return false;
+  }
+  return { gerar, baixar, imprimir, janelaImpressao, nomeArq, titulo, relTitulo, TEMAS, DOC_LEE, dataExtensa };
 })();
