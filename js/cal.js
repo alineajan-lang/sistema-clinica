@@ -18,7 +18,7 @@
   const STCHIP = { agendada: "info", confirmada: "info", realizada: "ok", faltou: "late", cancelada_paciente: "", cancelada_clinica: "" };
   const prefs = (() => { try { return JSON.parse(localStorage.getItem("calprefs") || "{}"); } catch (e) { return {}; } })();
   const salvaPrefs = () => { try { localStorage.setItem("calprefs", JSON.stringify({ hideP: C.hideP, hh: C.hh, view: C.view, mv: C.mv })); } catch (e) {} };
-  const C = { anchor: hojeISO(), view: prefs.view || "prof", mv: prefs.mv || "lista", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null, area: "" };
+  const C = { anchor: hojeISO(), view: prefs.view || "prof", mv: prefs.mv || "lista", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null, area: "", mod: "" };
   window.CAL = C;
 
   const areaDe = id => (S.profs.find(p => p.id === id) || {}).area;
@@ -79,7 +79,7 @@
     }
   }
   const pkDe = c => c.pacoteId && C.pk && C.pk[c.pacoteId];
-  const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId) && !CANC(c.status));
+  const consVis = () => C.cons.filter(c => dentro(c) && profAtivo(c.profissionalId) && !CANC(c.status) && (!C.mod || (c.modalidade || "presencial") === C.mod));
   function blqDia(b, d) {
     const ds = new Date(toISO(d, "00:00")).getTime(), de = ds + 86400000, s = new Date(b.inicio).getTime(), e = new Date(b.fim).getTime();
     if (e <= ds || s >= de) return null;
@@ -100,7 +100,7 @@
     if (cluster.length) flush();
     return out;
   }
-  const rangeDays = () => (C.view === "prof") ? [C.anchor] : (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
+  const rangeDays = () => (C.view === "prof") ? [C.anchor] : (C.view === "mes") ? (function () { const f = C.anchor.slice(0, 7) + "-01", ini = addDias(f, -((dowOf(f) + 6) % 7)); return Array.from({ length: 42 }, (_, i) => addDias(ini, i)); })() : (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
 
   // ---------- peças ----------
   function miniCal() {
@@ -118,7 +118,8 @@
     const selArea = areas.length > 1 ? '<div class="lbl" style="margin:16px 0 6px">Especialidade</div><select id="areaSel" class="areasel"><option value="">Todas as especialidades</option>' + areas.map(a => '<option value="' + esc(a) + '"' + (C.area === a ? " selected" : "") + ">" + esc(a) + "</option>").join("") + "</select>" : "";
     const grupo = (tipo, titulo) => { const ps = lista.filter(p => empTipo(p) === tipo); if (!ps.length) return "";
       return '<div class="grp"><span class="etag ' + tipo + '">' + titulo + "</span></div>" + ps.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join(""); };
-    return selArea + '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
+    const selEnd = '<div class="lbl" style="margin:16px 0 6px">Endereço</div><select id="modSel" class="areasel"><option value="">Todos os endereços</option><option value="presencial"' + (C.mod === "presencial" ? " selected" : "") + '>R. Verônica Cristina, 46 (presencial)</option><option value="online"' + (C.mod === "online" ? " selected" : "") + ">Telemedicina (online)</option></select>";
+    return selEnd + selArea + '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
       grupo("e", "Essência") + grupo("a", "Atlas") + grupo("ea", "Essência + Atlas") + "</div>";
   }
   // Confirmações de hoje (como no Doctoralia): quem já confirmou e quem ainda falta; a recepção confirma com um clique e o profissional vê o ✓ na própria agenda
@@ -129,6 +130,16 @@
     return '<div class="lbl" style="margin:16px 0 4px">Confirmações de hoje</div><div class="meta" style="margin-bottom:6px">✓ ' + nc + " confirmada" + (nc === 1 ? "" : "s") + " · ○ " + (L.length - nc) + ' aguardando</div><div class="confl">' +
       L.map(c => '<div class="confr"><span class="confh">' + esc(c.hora) + '</span><span class="confn"><b>' + esc(c.pacienteNome) + "</b><small>" + esc(nomeC(proNome(c.profissionalId))) + "</small></span>" +
         (c.status === "confirmada" ? '<span class="chip ok" title="Confirmada">✓</span>' : (gest ? '<button type="button" class="btn btn-ghost btn-sm" data-act="confirmar" data-id="' + esc(c.id) + '">Confirmar</button>' : '<span class="chip" title="Aguardando confirmação">○</span>')) + "</div>").join("") + "</div>";
+  }
+  function mesHtml(days, cons, cqn) {
+    const hoje = hojeISO(), mm = C.anchor.slice(0, 7);
+    let out = '<div class="mesg"><div class="mesh">' + ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"].map(x => "<div>" + x + "</div>").join("") + '</div><div class="mesb">';
+    days.forEach(d => {
+      const its = cons.filter(c => c.data === d && (!cqn || norm(c.pacienteNome).indexOf(cqn) !== -1)).sort((a, b) => a.hora.localeCompare(b.hora));
+      out += '<div class="mesc' + (d.slice(0, 7) !== mm ? " out" : "") + (d === hoje ? " today" : "") + '" data-act="goday" data-d="' + d + '"><div class="mesn">' + diaN(d) + (its.length ? "<small>" + its.length + "</small>" : "") + "</div>" +
+        its.slice(0, 3).map(c => '<div class="mesv" data-act="cons" data-id="' + esc(c.id) + '" style="--c:' + corProf(c.profissionalId) + '" title="' + esc(c.hora + " · " + c.pacienteNome + " · " + proNome(c.profissionalId)) + '"><b>' + esc(c.hora) + "</b> " + esc(nomeC(c.pacienteNome)) + "</div>").join("") + (its.length > 3 ? '<div class="mesm">+' + (its.length - 3) + " mais</div>" : "") + "</div>";
+    });
+    return out + "</div></div>";
   }
   function listaHtml(cons) {
     const rows = cons.slice().sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
@@ -170,15 +181,15 @@
     if (mobile) { if (["lista", "dia", "sem"].indexOf(C.mv) === -1) C.mv = "lista"; C.view = C.mv === "sem" ? "semana" : "prof"; }
     const HH = (mobile && C.mv === "sem") ? 46 : C.hh; document.documentElement.style.setProperty("--hh", HH + "px");
     const days = rangeDays(), hoje = hojeISO(), dia1 = C.view === "prof", cqn = norm(C.cq);
-    const title = dia1 ? diaSemana(days[0]) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
+    const title = dia1 ? diaSemana(days[0]) : C.view === "mes" ? MESL[+C.anchor.slice(5, 7) - 1] + " " + C.anchor.slice(0, 4) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
     const gestao = ehGestao();
     const wk = (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
     const strip7 = '<div class="daystrip">' + wk.map(d => '<button type="button" data-act="pickday" data-d="' + d + '" class="' + (d === C.anchor ? "sel " : "") + (d === hoje ? "today" : "") + '"><small>' + DOW[dowOf(d)] + "</small>" + diaN(d) + "</button>").join("") + "</div>";
     const tb = '<div class="toolbar"><button class="btn btn-ghost only-narrow tb-ag" data-act="sidetoggle">Agendas</button><button class="btn btn-ghost tb-hoje" data-act="hoje">Hoje</button><button class="btn btn-ghost tb-prev" data-act="nav" data-n="-1" aria-label="Anterior">‹</button><button class="btn btn-ghost tb-next" data-act="nav" data-n="1" aria-label="Próximo">›</button>' +
       '<div class="range tb-range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" class="tb-search" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
-      (C.view === "lista" ? "" : '<div class="seg tb-zoom"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
+      (C.view === "lista" || C.view === "mes" ? "" : '<div class="seg tb-zoom"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
       '<div class="seg tb-mv">' + [["lista", "Horário"], ["dia", "Dia"], ["sem", "Semana"]].map(m => '<button data-act="mv" data-m="' + m[0] + '" class="' + (C.mv === m[0] ? "on" : "") + '">' + m[1] + "</button>").join("") + "</div>" +
-      '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
+      '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="mes" class="' + (C.view === "mes" ? "on" : "") + '">Mês</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
       (C.view === "prof" && !mobile && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao || ehProf() ? '<button class="btn btn-primary tb-new" data-act="newcons">+ Nova consulta</button>' : "") + strip7 + "</div>";
     const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="espera">📋 Lista de espera</button><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + confHoje() + agList() + "</aside>";
@@ -188,6 +199,7 @@
     const strip = '<div class="strip"><span><b>' + vis.length + "</b> consulta" + (vis.length === 1 ? "" : "s") + " no período</span>" + (gestao ? "<span>Recebido <b>" + brl(recv) + "</b></span><span>A receber (realizadas) <b>" + brl(aber) + "</b></span>" : "") + (cqn ? "<span><b>" + achou + "</b> encontrada(s) para “" + esc(C.cq) + "”</span>" : (gestao ? "<span>Clique em um horário vazio para agendar.</span>" : "")) + "</div>";
     let corpo;
     if (mobile && C.mv === "lista") corpo = mobLista(cons, days, cqn);
+    else if (!mobile && C.view === "mes") corpo = mesHtml(days, cons, cqn);
     else if (!mobile && C.view === "lista") corpo = listaHtml(cqn ? cons.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1) : cons);
     else {
       let defs;
@@ -425,6 +437,7 @@
     const ini = b ? new Date(b.inicio) : null, fim = b ? new Date(b.fim) : null;
     const corpo = '<div class="sect"><div class="field"><label>Profissional</label><select id="bPro">' + (b ? "" : '<option value="*">Todos os profissionais</option>') + S.profs.filter(p => p.ativo).map(p => opt(p.id, p.nome, p.id === (b ? b.profissional_id : preset.pro))).join("") + "</select></div>" +
       '<div class="three"><div class="field"><label>Data</label><input id="bData" type="date" value="' + esc(b ? diaDe(b.inicio) : (preset.data || C.anchor)) + '"></div><div class="field"><label>Início</label><input id="bIni" type="time" value="' + esc(b ? hhmm(b.inicio) : (preset.hora || "08:00")) + '"></div><div class="field"><label>Fim</label><input id="bFim" type="time" value="' + esc(b ? hhmm(b.fim) : fromMin(toMin(preset.hora || "08:00") + 60)) + '"></div></div>' +
+      '<div class="two"><div class="field"><label>Até o dia (deixe vazio para um dia só)</label><input id="bAte" type="date" value="' + esc(b && b.dia_todo ? diaDe(new Date(new Date(b.fim).getTime() - 1)) : "") + '"></div>' + (b ? "" : '<label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:24px"><input type="checkbox" id="bUteis"> Pular sábado e domingo</label>') + '</div><div class="meta" style="margin:-4px 0 8px">Para vários dias, escolha o primeiro em <b>Data</b> e o último em <b>Até o dia</b>. Sem “Dia todo”, o mesmo horário vale para cada dia.</div>' +
       '<label class="chk" style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="bDia"' + (b && b.dia_todo ? " checked" : "") + '> Dia todo</label><div class="field"><label>Motivo</label><input id="bMot" value="' + esc(b ? b.comentario : "") + '" placeholder="Reunião, almoço, férias, sublocação…"></div></div>';
     C.modal = { blq: id || null };
     drawer(b ? "Editar bloqueio" : "Bloquear horário", corpo, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button>' + (b ? '<button class="btn btn-danger" data-act="delblq">Excluir</button>' : "") + '<button class="btn btn-primary" data-act="saveblq" style="flex:1">Salvar</button>');
@@ -435,15 +448,30 @@
     if (!t && (!val("bIni") || !val("bFim"))) return toast("Informe o horário de início e de fim.", true);
     if (!t && toMin(val("bFim")) <= toMin(val("bIni"))) return toast("O fim deve ser depois do início.", true);
     if (!pro) return toast("Escolha o profissional.", true);
-    const ini = new Date(toISO(dia, t ? "00:00" : val("bIni"))), fim = new Date(toISO(t ? addDias(dia, 1) : dia, t ? "00:00" : val("bFim")));
-    if (isNaN(ini) || isNaN(fim)) return toast("Data ou horário inválido.", true);
-    const base = { inicio: ini.toISOString(), fim: fim.toISOString(), dia_todo: t, comentario: val("bMot") || null };
+    const ate = val("bAte") || dia, uteis = !!($("bUteis") && $("bUteis").checked);
+    if (ate < dia) return toast("O último dia deve ser igual ou depois do primeiro.", true);
+    const nDias = Math.round((new Date(ate + "T12:00:00-04:00") - new Date(dia + "T12:00:00-04:00")) / 864e5) + 1;
+    if (nDias > 366) return toast("Escolha no máximo um ano de cada vez.", true);
     const ids = pro === "*" ? S.profs.filter(p => p.ativo && atendeEm(p)).map(p => p.id) : [pro];
+    // períodos a bloquear: dia todo contínuo = um só registro; horário fixo ou "pular fim de semana" = um registro por dia
+    let spans = [];
+    if (C.modal.blq) spans = [[dia, t ? ate : dia]];
+    else if (t && !uteis) spans = [[dia, ate]];
+    else for (let i = 0; i < nDias; i++) { const d = addDias(dia, i); if (uteis && (dowOf(d) === 0 || dowOf(d) === 6)) continue; spans.push([d, d]); }
+    if (!spans.length) return toast("Nenhum dia para bloquear nesse período.", true);
+    const linhas = [];
+    ids.forEach(id => spans.forEach(([x, y]) => {
+      const ini = new Date(toISO(x, t ? "00:00" : val("bIni"))), fim = new Date(toISO(t ? addDias(y, 1) : y, t ? "00:00" : val("bFim")));
+      linhas.push({ profissional_id: id, inicio: ini.toISOString(), fim: fim.toISOString(), dia_todo: t, comentario: val("bMot") || null });
+    }));
+    if (linhas.some(l => isNaN(new Date(l.inicio)) || isNaN(new Date(l.fim)))) return toast("Data ou horário inválido.", true);
     try {
-      if (C.modal.blq) await ok(sb.from("bloqueios").update(Object.assign({ profissional_id: pro }, base)).eq("id", C.modal.blq));
-      else await ok(sb.from("bloqueios").insert(ids.map(id => Object.assign({ profissional_id: id }, base))));
+      if (C.modal.blq) await ok(sb.from("bloqueios").update(linhas[0]).eq("id", C.modal.blq));
+      else await ok(sb.from("bloqueios").insert(linhas));
     } catch (e) { return toast("Não foi possível salvar o bloqueio: " + (e && e.message ? e.message : e), true); }
-    toast("Bloqueio salvo" + (ids.length > 1 && !C.modal.blq ? " para " + ids.length + " profissionais." : ".")); fecha(); await recarrega(true);
+    const dias = spans.reduce((n, [x, y]) => n + Math.round((new Date(y + "T12:00:00-04:00") - new Date(x + "T12:00:00-04:00")) / 864e5) + 1, 0);
+    toast("Bloqueio salvo" + (C.modal.blq ? "." : " para " + (ids.length > 1 ? ids.length + " profissionais, " : "") + dias + " dia" + (dias === 1 ? "" : "s") + "."));
+    fecha(); await recarrega(true);
   }
 
   // ---------- lista de espera (tabela lista_espera) ----------
@@ -475,11 +503,11 @@
   document.addEventListener("dragend", () => { arrasta = null; document.querySelectorAll(".dragging,.dropcol").forEach(e => e.classList.remove("dragging", "dropcol")); });
   document.addEventListener("dragover", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; });
   document.addEventListener("drop", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); const a = arrasta; arrasta = null; moveCons(a, col, ev); });
-  document.addEventListener("change", ev => { if (ev.target.id === "areaSel") { C.area = ev.target.value; pinta(); } });
+  document.addEventListener("change", ev => { if (ev.target.id === "areaSel") { C.area = ev.target.value; pinta(); } if (ev.target.id === "modSel") { C.mod = ev.target.value; pinta(); } });
 
   // ---------- eventos ----------
   const acoes = {
-    hoje() { C.anchor = hojeISO(); recarrega(); }, nav(el) { const n = +el.dataset.n; C.anchor = addDias(C.anchor, C.view === "prof" ? n : n * 7); recarrega(); },
+    hoje() { C.anchor = hojeISO(); recarrega(); }, nav(el) { const n = +el.dataset.n; if (C.view === "mes") { const y = +C.anchor.slice(0, 4), m = +C.anchor.slice(5, 7), d = new Date(Date.UTC(y, m - 1 + n, 1)); C.anchor = d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-01"; } else C.anchor = addDias(C.anchor, C.view === "prof" ? n : n * 7); recarrega(); },
     view(el) { C.view = el.dataset.v; salvaPrefs(); recarrega(); }, mv(el) { C.mv = el.dataset.m; salvaPrefs(); recarrega(); }, pickday(el) { C.anchor = el.dataset.d; recarrega(); }, goday(el) { C.anchor = el.dataset.d; C.view = "prof"; if (isMob()) { C.mv = "dia"; salvaPrefs(); } recarrega(); },
     zoom(el) { C.hh = Math.min(112, Math.max(40, C.hh + (+el.dataset.n) * 12)); salvaPrefs(); pinta(); }, allcols() { C.allCols = !C.allCols; pinta(); },
     sidetoggle() { C.sideOpen = !C.sideOpen; pinta(); }, minipick(el) { C.anchor = el.dataset.d; recarrega(); },
