@@ -293,7 +293,7 @@
       if ($("dcRelModelo")) $("dcRelModelo").onchange = () => { const m = REL_MODELOS[V("dcRelModelo")]; if (m && (!V("dcRel").trim() || confirm("Substituir o texto atual pela estrutura escolhida?"))) { $("dcRel").value = m; $("dcRel").dispatchEvent(new Event("input", { bubbles: true })); } };
       if ($("dcModelo")) $("dcModelo").onchange = () => { const l = EXAMES[V("dcModelo")]; if (l) { const atual = V("dcExames").split(/\r?\n/).map(x => x.trim()).filter(Boolean); $("dcExames").value = [...atual, ...l.filter(x => !atual.includes(x))].join("\n"); $("dcModelo").value = ""; $("dcExames").dispatchEvent(new Event("input", { bubbles: true })); } };
       document.querySelectorAll("[data-ses]").forEach(c => c.onchange = () => { const sel = [...document.querySelectorAll("[data-ses]")].filter(x => x.checked).map(x => x.dataset.ses), soma = consultas.filter(x => sel.includes(x.id)).reduce((s, x) => s + Number(x.valor || 0), 0); if (soma > 0) $("rcValor").value = soma.toFixed(2); const prim = consultas.filter(x => sel.includes(x.id))[0]; if (prim && $("dcPro")) { $("dcPro").value = prim.profissional_id; } });
-      if ($("dcMinhaAss")) $("dcMinhaAss").onclick = e => { e.preventDefault(); ler(); ASSIN.telaMinha(() => desenha(), gestao ? D.quem : ""); };
+      if ($("dcMinhaAss")) $("dcMinhaAss").onclick = e => { e.preventDefault(); ler(); ASSIN.telaMinha(() => { D.assinar = true; desenha(); }, gestao ? D.quem : ""); };
       if ($("dcQuem")) $("dcQuem").onchange = () => { ler(); desenha(); };
       if ($("dcTMod")) $("dcTMod").onchange = () => { ler(); D.texto = ""; desenha(); };
       if ($("dcTGerar")) $("dcTGerar").onclick = () => { ler(); if (!confirm("Substituir o texto atual pelo modelo?")) return; D.texto = ""; desenha(); };
