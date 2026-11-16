@@ -75,11 +75,13 @@ async function carregarBase() {
 const TAB_ICO = {
   agenda: '<path d="M3.5 10h17M8 3v4M16 3v4"/><rect x="3.5" y="5" width="17" height="15" rx="2.5"/>',
   pacientes: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14c2.8 0 4.5 1.8 4.5 4.5"/>',
+  pacotes: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
+  relatorios: '<path d="M5 20V10M11 20V4M17 20v-7M3 20h18"/>',
   profissionais: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.6 1.6-2.3 2.5-2.3s1.9.7 2.5 2.3M14 10h4M14 13.5h3"/>'
 };
 function svgIco(k) { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.innerHTML = TAB_ICO[k]; return s; }
 function shell(conteudo, ativo) {
-  const nav = [["agenda", "Agenda"], ["pacientes", "Pacientes"]].concat(ehGestao() ? [["profissionais", "Profissionais"]] : []);
+  const nav = [["agenda", "Agenda"], ["pacientes", "Pacientes"]].concat(ehGestao() ? [["pacotes", "Pacotes"], ["relatorios", "Relatórios"], ["profissionais", "Profissionais"]] : []);
   const eid = c => (S.emps.find(e => e.codigo === c) || {}).id || "";
   const ctx = S.emp && S.emp === eid("atlas") ? "atlas" : S.emp ? "essencia" : "todas";
   document.body.dataset.emp = ctx;
@@ -102,6 +104,8 @@ async function rota() {
     if (v === "agenda") el = await vAgenda(q);
     else if (v === "pacientes") el = await vPacientes(q);
     else if (v === "paciente") el = await vFicha(partes[1], q);
+    else if (v === "pacotes" && ehGestao()) el = await vPacotes(q);
+    else if (v === "relatorios" && ehGestao()) el = await vRelatorios(q);
     else if (v === "profissionais" && ehGestao()) el = await vProfissionais();
     else el = vazio("Página não encontrada.");
     shell(el, v === "paciente" ? "pacientes" : v);
@@ -171,10 +175,16 @@ async function vPacientes(q) {
   const porPac = {}; vinc.forEach(v => (porPac[v.paciente_id] = porPac[v.paciente_id] || []).push(v.profissional_id));
   const recentes = pacs.length ? await ok(sb.from("agendamentos").select("paciente_id").in("paciente_id", pacs.map(p => p.id)).in("status", ["cancelada_paciente", "cancelada_clinica"]).gte("inicio", new Date(Date.now() - 14 * 86400000).toISOString())) : [];
   const comCanc = new Set(recentes.map(r => r.paciente_id));
+  // última visita e próxima consulta de cada paciente da lista (como na lista do Doctoralia)
+  const viv = pacs.length ? await todosOsDados(() => sb.from("agendamentos").select("paciente_id,inicio,status").in("paciente_id", pacs.map(p => p.id)).not("status", "in", "(cancelada_paciente,cancelada_clinica)").order("inicio")) : [];
+  const agora = Date.now(), ult = {}, prox = {};
+  viv.forEach(a => { const t = new Date(a.inicio).getTime(); if (t < agora) { if (!ult[a.paciente_id] || t > ult[a.paciente_id]) ult[a.paciente_id] = t; } else if (!prox[a.paciente_id] || t < prox[a.paciente_id]) prox[a.paciente_id] = t; });
+  const dataHora = t => fmtData(t) + " " + hhmm(t);
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Pacientes"), ehGestao() && h("button", { class: "btn-p", onclick: () => pacModal(null) }, "+ Novo paciente")),
     h("div", { class: "row", style: "margin-top:10px" }, seg), h("div", { class: "row", style: "margin-top:10px" }, busca, fp, h("button", { onclick: () => go() }, "Buscar"))),
-    h("div", { class: "card" }, pacs.length ? h("table", { class: "stack" }, h("thead", {}, h("tr", {}, (ehProf() ? ["Nome", "Clínica", "Telefone"] : ["Nome", "Clínica", "Telefone", "Profissionais"]).map(t => h("th", {}, t)))),
-      h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), !ehProf() && h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
+    h("div", { class: "card" }, pacs.length ? h("table", { class: "stack" }, h("thead", {}, h("tr", {}, (ehProf() ? ["Nome", "Clínica", "Telefone", "Última visita", "Próxima consulta"] : ["Nome", "Clínica", "Telefone", "E-mail", "Última visita", "Próxima consulta", "Profissionais"]).map(t => h("th", {}, t)))),
+      h("tbody", {}, pacs.map(p => h("tr", { class: "click emp-" + (empCod(p.empresa_id) === "atlas" ? "a" : "e"), onclick: () => location.hash = "#/paciente/" + p.id }, h("td", {}, h("b", {}, p.nome), !p.ativo && h("span", { class: "chip" }, "inativo"), comCanc.has(p.id) && h("span", { class: "chip faltou", title: "Tem consulta cancelada nos últimos 14 dias" }, "⚠ cancelamento")), h("td", {}, empBadge(p.empresa_id)), h("td", {}, p.telefone || ""), !ehProf() && h("td", { class: "small" }, p.email || ""), h("td", { class: "small nowrap" }, ult[p.id] ? dataHora(ult[p.id]) : "—"),
+        h("td", { class: "small nowrap" }, prox[p.id] ? dataHora(prox[p.id]) : (ehGestao() ? h("a", { href: "#", onclick: e => { e.preventDefault(); e.stopPropagation(); agModal(null, { paciente: p, profissional_id: (porPac[p.id] || [])[0] }); } }, "Criar consulta") : "—")), !ehProf() && h("td", { class: "small" }, (porPac[p.id] || []).map(id => nomeCurto(profNome(id))).join(", ")))))) : vazio("Nenhum paciente encontrado."),
       pacs.length >= 80 && h("div", { class: "small muted", style: "margin-top:8px" }, "Mostrando os 80 primeiros. Refine a busca.")));
 }
 function pacModal(p) {
