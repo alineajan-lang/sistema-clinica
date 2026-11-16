@@ -84,7 +84,7 @@ window.RTE = (function () {
     document.addEventListener("click", e => { if (!pop.hidden && !pop.contains(e.target) && !barra.contains(e.target)) fechaPop(); });
     area.addEventListener("keydown", e => { if (e.key === "Escape" && raiz.classList.contains("rte-full")) { e.preventDefault(); alterna(); } });
     area.addEventListener("paste", e => { const cd = e.clipboardData; if (!cd) return; e.preventDefault(); const ht = cd.getData("text/html"), tx = cd.getData("text/plain"); if (ht) document.execCommand("insertHTML", false, limpa(ht, false)); else document.execCommand("insertText", false, tx); mudou(); });
-    const get = () => (area.textContent.trim() || area.querySelector("table,hr")) ? limpa(area.innerHTML) : "";
+    const get = () => (area.textContent.trim() || area.querySelector("table,hr")) ? limpa(area.innerHTML).replace(/<p>\s*<\/p>/g, "") : "";
     const set = html => { area.innerHTML = limpa(html || ""); contar(); };
     contar();
     return { el: raiz, area, get, set, foco: () => area.focus(), vazio: () => !get() };
