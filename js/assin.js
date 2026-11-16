@@ -6,11 +6,11 @@ window.ASSIN = (function () {
   function pad(titulo, dica) {
     return new Promise(resolve => {
       const cv = h("canvas", { width: 900, height: 300, style: "width:100%;height:190px;border:1px dashed var(--bd);border-radius:10px;background:#fff;touch-action:none;display:block;cursor:crosshair" });
-      const c = cv.getContext("2d"); let desenhando = false, tem = false, b = { x0: 1e9, y0: 1e9, x1: -1, y1: -1 }, ult = null;
+      const c = cv.getContext("2d"); let desenhando = false, tem = false, b = { x0: 1e9, y0: 1e9, x1: -1, y1: -1 }, ult = null, tracos = [];
       c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = 4; c.strokeStyle = "#16181f";
       const pos = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
-      cv.addEventListener("pointerdown", e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); desenhando = true; ult = pos(e); c.beginPath(); c.arc(ult.x, ult.y, 1.6, 0, 6.3); c.fillStyle = "#16181f"; c.fill(); tem = true; marca(ult); });
-      cv.addEventListener("pointermove", e => { if (!desenhando) return; const p = pos(e); c.beginPath(); c.moveTo(ult.x, ult.y); c.lineTo(p.x, p.y); c.stroke(); ult = p; marca(p); });
+      cv.addEventListener("pointerdown", e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); desenhando = true; ult = pos(e); c.beginPath(); c.arc(ult.x, ult.y, 1.6, 0, 6.3); c.fillStyle = "#16181f"; c.fill(); tem = true; marca(ult); tracos.push([[ult.x, ult.y]]); });
+      cv.addEventListener("pointermove", e => { if (!desenhando) return; const p = pos(e); c.beginPath(); c.moveTo(ult.x, ult.y); c.lineTo(p.x, p.y); c.stroke(); ult = p; marca(p); if (tracos.length && Math.hypot(p.x - tracos[tracos.length - 1].slice(-1)[0][0], p.y - tracos[tracos.length - 1].slice(-1)[0][1]) > 1.5) tracos[tracos.length - 1].push([p.x, p.y]); });
       const fim = () => { desenhando = false; }; cv.addEventListener("pointerup", fim); cv.addEventListener("pointercancel", fim); cv.addEventListener("pointerleave", fim);
       function marca(p) { b.x0 = Math.min(b.x0, p.x); b.y0 = Math.min(b.y0, p.y); b.x1 = Math.max(b.x1, p.x); b.y1 = Math.max(b.y1, p.y); }
       function exportar() {
@@ -18,9 +18,11 @@ window.ASSIN = (function () {
         const esc = Math.min(1, 520 / w), o = document.createElement("canvas"); o.width = Math.max(1, Math.round(w * esc)); o.height = Math.max(1, Math.round(hh * esc));
         const oc = o.getContext("2d"), src = c.getImageData(x0, y0, w, hh), t = document.createElement("canvas"); t.width = w; t.height = hh; const tc = t.getContext("2d"), px = src.data;
         for (let i = 0; i < px.length; i += 4) { const claro = (px[i] + px[i + 1] + px[i + 2]) / 3; px[i + 3] = Math.max(0, Math.min(255, 255 - claro)); px[i] = 22; px[i + 1] = 24; px[i + 2] = 31; }
-        tc.putImageData(src, 0, 0); oc.drawImage(t, 0, 0, o.width, o.height); return o.toDataURL("image/png");
+        tc.putImageData(src, 0, 0); oc.drawImage(t, 0, 0, o.width, o.height);
+        const ww = Math.max(1, b.x1 - b.x0), hh2 = Math.max(1, b.y1 - b.y0), r3 = v => Math.round(v * 1000) / 1000;
+        return { png: o.toDataURL("image/png"), r: r3(ww / hh2), t: tracos.map(s => s.map(([x, y]) => [r3((x - b.x0) / ww), r3((y - b.y0) / hh2)])) };
       }
-      const limpar = () => { c.clearRect(0, 0, cv.width, cv.height); tem = false; b = { x0: 1e9, y0: 1e9, x1: -1, y1: -1 }; };
+      const limpar = () => { c.clearRect(0, 0, cv.width, cv.height); tem = false; tracos = []; b = { x0: 1e9, y0: 1e9, x1: -1, y1: -1 }; };
       modal(titulo || "Assinatura", h("div", {}, h("div", { class: "small muted", style: "margin-bottom:8px" }, dica || "Desenhe a assinatura na área abaixo, com o dedo, a caneta ou o mouse."), cv),
         [{ t: "Limpar", f: async () => { limpar(); return false; } }, { t: "Cancelar", f: async () => { resolve(null); } },
           { t: "Usar esta assinatura", p: true, f: async () => { if (!tem) { toast("Desenhe a assinatura primeiro.", true); return false; } resolve(exportar()); } }], "560px");
@@ -30,16 +32,16 @@ window.ASSIN = (function () {
   async function minha(force) {
     if (cache !== undefined && !force) return cache;
     const r = await sb.from("assinaturas").select("imagem").eq("perfil_id", S.perfil.id).maybeSingle();
-    cache = r.error ? null : (r.data ? r.data.imagem : null); return cache;
+    let v = r.error || !r.data ? null : r.data.imagem; try { v = v && v.charAt(0) === "{" ? JSON.parse(v) : null; } catch (e) { v = null; } cache = v; return cache;
   }
   async function telaMinha(depois) {
     const atual = await minha(true);
-    const prev = atual ? h("img", { src: atual, alt: "Sua assinatura", style: "max-width:100%;max-height:120px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px" }) : h("div", { class: "muted" }, "Nenhuma assinatura cadastrada ainda.");
+    const prev = atual ? h("img", { src: atual.png, alt: "Sua assinatura", style: "max-width:100%;max-height:120px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px" }) : h("div", { class: "muted" }, "Nenhuma assinatura cadastrada ainda.");
     modal("Minha assinatura", h("div", {}, h("p", { class: "small muted" }, "Esta assinatura é usada nos documentos que você assina eletronicamente no Essária. Ela fica guardada só para o seu login (" + S.perfil.nome + ")."), prev),
       [{ t: "Fechar" }].concat(atual ? [{ t: "Remover", d: true, f: async () => { const r = await sb.from("assinaturas").delete().eq("perfil_id", S.perfil.id); if (r.error) throw new Error(r.error.message); cache = null; toast("Assinatura removida."); if (depois) depois(); } }] : [],
         [{ t: atual ? "Desenhar de novo" : "Desenhar a assinatura", p: true, f: async () => {
           const img = await pad("Minha assinatura"); if (!img) return;
-          const r = await sb.from("assinaturas").upsert({ perfil_id: S.perfil.id, imagem: img, atualizado_em: new Date().toISOString() }, { onConflict: "perfil_id" });
+          const r = await sb.from("assinaturas").upsert({ perfil_id: S.perfil.id, imagem: JSON.stringify(img), atualizado_em: new Date().toISOString() }, { onConflict: "perfil_id" });
           if (r.error) throw new Error(r.error.message.includes("assinaturas") ? "A tabela de assinaturas ainda não foi criada no banco (falta rodar o SQL)." : r.error.message);
           cache = img; toast("Assinatura salva."); if (depois) depois();
         } }]));
@@ -51,7 +53,7 @@ window.ASSIN = (function () {
     const img = await minha(); if (!img) throw new Error("Você ainda não cadastrou a sua assinatura. Use “Minha assinatura” no topo da página.");
     const em = new Date().toISOString(), base = JSON.parse(JSON.stringify(doc)); delete base.assin; if (base.assinPac) base.assinPac = { nome: base.assinPac.nome, em: base.assinPac.em };
     const hash = await sha256(JSON.stringify(base) + "|" + quem.nome + "|" + em);
-    doc.assin = { nome: quem.nome, registro: quem.registro || "", tipo: quem.tipo, em, hash, codigo: hash.slice(0, 12).toUpperCase(), imagem: img };
+    doc.assin = { nome: quem.nome, registro: quem.registro || "", tipo: quem.tipo, em, hash, codigo: hash.slice(0, 12).toUpperCase(), imagem: { t: img.t, r: img.r } };
     return doc;
   }
   // ---- conferência pública por código ----

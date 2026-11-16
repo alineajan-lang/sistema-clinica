@@ -102,10 +102,11 @@ window.PDFDOC = (function () {
       const duasAss = d.tipo === "termo" || d.tipo === "contrato", ga = !!(d.assin && d.assin.tipo === "gestao");
       fonte("Mulish", "normal", 10, T.tinta); doc.text("Manaus, " + dataExtensa(d.data) + ".", ML, duasAss ? yb - 3 : yb + 9);
       doc.setDrawColor(T.tinta[0], T.tinta[1], T.tinta[2]); doc.setLineWidth(0.3); doc.line(112, yb + 9, MR, yb + 9);
-      const poeAss = (img, cx) => { try { const ip = doc.getImageProperties(img), w = Math.min(56, 17 * ip.width / ip.height), hh = w * ip.height / ip.width; doc.addImage(img, "PNG", cx - w / 2, yb + 8.4 - hh, w, hh); } catch (e) {} };
-      if (d.assin && d.assin.imagem) poeAss(d.assin.imagem, 152);
+      const poeAss = (img, cx) => { try { if (!img || !img.t || !img.r) return; const hh = Math.min(16, 54 / img.r), w = hh * img.r, x0 = cx - w / 2, y0 = yb + 8 - hh; doc.setDrawColor(22, 24, 31); doc.setLineWidth(0.38); doc.setLineCap("round"); doc.setLineJoin("round");
+        img.t.forEach(st => { if (st.length === 1) { doc.circle(x0 + st[0][0] * w, y0 + st[0][1] * hh, 0.2, "F"); return; } for (let i = 1; i < st.length; i++) doc.line(x0 + st[i - 1][0] * w, y0 + st[i - 1][1] * hh, x0 + st[i][0] * w, y0 + st[i][1] * hh); }); doc.setLineWidth(0.3); } catch (e) {} };
+      if (d.assin) poeAss(d.assin.imagem, 152);
       if (duasAss) {
-        doc.line(ML, yb + 9, 100, yb + 9); if (d.assinPac && d.assinPac.imagem) poeAss(d.assinPac.imagem, (ML + 100) / 2);
+        doc.line(ML, yb + 9, 100, yb + 9); if (d.assinPac) poeAss(d.assinPac.imagem, (ML + 100) / 2);
         fonte("Mulish", "bold", 10.5, T.tinta); doc.text(((d.resp && d.resp.nome) || d.pac.nome || "Paciente"), (ML + 100) / 2, yb + 14.2, { align: "center" });
         fonte("Mulish", "normal", 8.8, T.suave); doc.text((d.resp && d.resp.nome ? "Responsável legal" + (d.resp.par ? " (" + d.resp.par + ")" : "") + (d.resp.cpf ? " · CPF " + d.resp.cpf : "") : "Paciente"), (ML + 100) / 2, yb + 18.6, { align: "center" });
       }
