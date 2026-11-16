@@ -90,29 +90,76 @@
   const proDados = pr => ({ nome: pr.nome, area: pr.area || "", registro: registroDe(pr), rqe: pr.rqe || "" });
 
   // ================= RELATOS DE SESSÃO =================
+  const TIPOS_REL = [["relato", "Relato da sessão"], ["retorno", "Retorno"], ["avaliacao", "Avaliação"], ["devolutiva", "Devolutiva"], ["familiar", "Contato com familiar ou escola"], ["supervisao", "Supervisão"], ["outro", "Outro"]];
+  const COR_TIPO = { relato: "#6f8a52", retorno: "#2f6db5", avaliacao: "#7a5bb0", devolutiva: "#c46e85", familiar: "#b26a00", supervisao: "#5a6b7b", outro: "#8a8577" };
+  const nomeTipo = k => (TIPOS_REL.find(x => x[0] === k) || [k, k])[1];
+  // relatos antigos podem ser texto simples: vira parágrafos
+  const corpoHtml = e => { const c = String(e.conteudo || ""); return /<\/?[a-z][\s\S]*>/i.test(c) ? c : c.split(/\n{2,}/).map(x => "<p>" + E(x).replace(/\n/g, "<br>") + "</p>").join(""); };
+  function imprimirRelatos(ctx, lista, w) {
+    const css = "body{font:13.5px/1.55 Georgia,'Times New Roman',serif;color:#222;margin:28px}h1{font:700 20px sans-serif;margin:0}.c{color:#666;font:12px sans-serif;margin:2px 0 18px}.e{border-top:1px solid #ccc;padding:12px 0;page-break-inside:avoid}.m{font:700 12px sans-serif;color:#555;margin-bottom:6px}h3{font:700 14px sans-serif;margin:10px 0 3px}h4{font:700 13px sans-serif;margin:8px 0 2px}table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:4px 8px}blockquote{border-left:3px solid #aaa;margin:6px 0;padding-left:10px;color:#444}.r{font:11px sans-serif;color:#777;margin-top:24px}";
+    const itens = lista.map(e => '<div class="e"><div class="m">' + E(fmtDataHora(e.data)) + " · " + E(nomeTipo(e.tipo)) + " · " + E(profNome(e.profissional_id)) + "</div>" + RTE.limpa(corpoHtml(e)) + "</div>").join("");
+    const doc = '<!doctype html><meta charset="utf-8"><title>Relatos - ' + E(ctx.p.nome) + "</title><style>" + css + "</style><h1>Relatos de sessão</h1><div class=\"c\">Paciente: <b>" + E(ctx.p.nome) + "</b> · " + (ctx.emp === "atlas" ? "Clínica Atlas" : "Clínica Essência") + " · emitido em " + E(fmtDataHora(new Date())) + "</div>" + itens + '<div class="r">Documento sigiloso, de uso exclusivo do(a) profissional e do paciente.</div>';
+    w.document.open(); w.document.write(doc); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
+  }
   async function viewRelatos(ctx, corpo) {
     const { p, pro, prof } = ctx;
-    const evs = await ok(sb.from("evolucoes").select("*").eq("paciente_id", p.id).order("data", { ascending: false }).limit(300));
+    const evs = await ok(sb.from("evolucoes").select("*").eq("paciente_id", p.id).order("data", { ascending: false }).limit(500));
     const nowLocal = () => new Date().toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T");
-    let html = "";
-    if (prof) html += '<div class="sect">' + aviso + '<div class="two"><div class="field"><label for="rlData">Data e hora</label><input id="rlData" type="datetime-local" value="' + nowLocal() + '"></div><div class="field"><label for="rlTipo">Tipo</label><select id="rlTipo">' + opt("relato", "Relato da sessão") + opt("retorno", "Retorno") + opt("outro", "Outro") + '</select></div></div><div class="field"><label for="rlTxt">Relato</label><textarea id="rlTxt" style="min-height:170px" placeholder="Escreva o relato. Tudo é salvo automaticamente enquanto você digita."></textarea></div><div class="row"><button class="btn btn-primary" id="rlNovo">Concluir e começar outro relato</button></div></div>';
-    html += evs.length ? evs.map(e => '<div class="evo"><div class="meta">' + E(fmtDataHora(e.data)) + (ctx.gestao ? " · " + E(nomeCurto(profNome(e.profissional_id))) : "") + " · " + E(e.tipo) + (prof && e.profissional_id === pro.id ? ' · <a href="#" data-edit="' + E(e.id) + '">editar</a>' : "") + '</div><div class="corpo" data-ev="' + E(e.id) + '"></div></div>').join("") : '<div class="empty">Nenhum relato registrado.</div>';
-    corpo.innerHTML = html;
-    corpo.querySelectorAll("[data-ev]").forEach(el => { const e = evs.find(x => x.id === el.dataset.ev); el.innerHTML = DOMPurify.sanitize(e.conteudo || ""); });
+    const meusModelos = prof ? {
+      listar: async () => { const r = await sb.from("modelos_texto").select("id,titulo,html").eq("profissional_id", pro.id).order("titulo"); if (r.error) throw r.error; return r.data; },
+      salvar: async (titulo, html) => { const r = await sb.from("modelos_texto").insert({ profissional_id: pro.id, titulo, html }); if (r.error) throw r.error; },
+      excluir: async id => { const r = await sb.from("modelos_texto").delete().eq("id", id); if (r.error) throw r.error; }
+    } : null;
+    let h0 = "";
+    if (prof) h0 += '<div class="sect">' + aviso + '<div class="two"><div class="field"><label for="rlData">Data e hora</label><input id="rlData" type="datetime-local" value="' + nowLocal() + '"></div><div class="field"><label for="rlTipo">Tipo</label><select id="rlTipo">' + TIPOS_REL.map(([k, l]) => opt(k, l)).join("") + '</select></div></div><div id="rlEd"></div><div class="row"><button class="btn btn-primary" id="rlNovo">Concluir e começar outro relato</button><span class="meta">Use <b>Modelos</b> para começar de uma estrutura pronta (SOAP, primeira sessão, infantil…) ou dos seus modelos.</span></div></div>';
+    h0 += '<div class="rl-filtros"><input id="rlBusca" type="search" placeholder="Buscar nos relatos…"><select id="rlFTipo"><option value="">Todos os tipos</option>' + TIPOS_REL.map(([k, l]) => opt(k, l)).join("") + '</select><span id="rlConta" class="meta"></span><span class="grow"></span><button class="btn btn-ghost btn-sm" id="rlTudo">Expandir todos</button><button class="btn btn-ghost btn-sm" id="rlImpTodos">🖨 Imprimir / salvar em PDF</button></div><div id="rlLista"></div>';
+    corpo.innerHTML = h0;
+    let relId = null, expandido = false, ed = null;
+    // ----- lista dos relatos já escritos -----
+    function desenhaLista() {
+      const q = norm($("rlBusca").value), ft = $("rlFTipo").value, el = $("rlLista");
+      const lista = evs.filter(e => (!ft || e.tipo === ft) && (!q || norm(RTE.paraTexto(corpoHtml(e))).includes(q)));
+      $("rlConta").textContent = lista.length + " de " + evs.length + " relato" + (evs.length === 1 ? "" : "s");
+      el.replaceChildren();
+      if (!lista.length) { el.append(h("div", { class: "empty" }, evs.length ? "Nenhum relato com esse filtro." : "Nenhum relato registrado.")); return lista; }
+      let mes = "";
+      lista.forEach(e => {
+        const m = new Date(e.data).toLocaleDateString("pt-BR", { timeZone: TZ, month: "long", year: "numeric" });
+        if (m !== mes) { mes = m; el.append(h("div", { class: "rl-mes" }, m)); }
+        const cor = COR_TIPO[e.tipo] || "#8a8577", dono = prof && e.profissional_id === pro.id, cp = h("div", { class: "corpo rl-corpo rl-clamp" }), mais = h("a", { href: "#", class: "small", hidden: true }, "Mostrar tudo");
+        cp.innerHTML = RTE.limpa(corpoHtml(e));
+        const acao = (rot, fn) => h("a", { href: "#", onclick: ev => { ev.preventDefault(); fn(); } }, rot);
+        el.append(h("div", { class: "evo", style: "border-left-color:" + cor }, h("div", { class: "meta rl-meta" }, h("b", {}, fmtDataHora(e.data)), h("span", { class: "chip", style: "background:" + cor + "22;color:" + cor }, nomeTipo(e.tipo)), ctx.gestao || !dono ? h("span", {}, nomeCurto(profNome(e.profissional_id))) : null,
+          h("span", { class: "grow" }), dono ? acao("editar", () => editar(e)) : null, prof ? acao("usar como base", () => baseNova(e)) : null, acao("copiar", async () => { try { await navigator.clipboard.writeText(RTE.paraTexto(corpoHtml(e))); toast("Texto copiado."); } catch (er) { toast("Não foi possível copiar.", true); } }), acao("imprimir", () => { const w = window.open("", "_blank"); if (w) imprimirRelatos(ctx, [e], w); else toast("O navegador bloqueou a janela de impressão.", true); })), cp, mais));
+        mais.onclick = ev => { ev.preventDefault(); const aberto = cp.classList.toggle("rl-clamp") === false; mais.textContent = aberto ? "Recolher" : "Mostrar tudo"; };
+        requestAnimationFrame(() => { if (cp.scrollHeight > 190) { mais.hidden = false; if (expandido) { cp.classList.remove("rl-clamp"); mais.textContent = "Recolher"; } } else cp.classList.remove("rl-clamp"); });
+      });
+      return lista;
+    }
+    $("rlBusca").oninput = desenhaLista; $("rlFTipo").onchange = desenhaLista;
+    $("rlTudo").onclick = () => { expandido = !expandido; $("rlTudo").textContent = expandido ? "Recolher todos" : "Expandir todos"; desenhaLista(); };
+    $("rlImpTodos").onclick = () => { const w = window.open("", "_blank"); if (!w) return toast("O navegador bloqueou a janela de impressão.", true); const q = norm($("rlBusca").value), ft = $("rlFTipo").value; imprimirRelatos(ctx, evs.filter(e => (!ft || e.tipo === ft) && (!q || norm(RTE.paraTexto(corpoHtml(e))).includes(q))).slice().reverse(), w); };
+    desenhaLista();
     if (!prof) return;
-    let relId = null; const esc2 = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const paraHtml = t => t.split(/\n{2,}/).map(x => "<p>" + esc2(x).replace(/\n/g, "<br>") + "</p>").join("");
+    // ----- editor -----
+    ed = RTE.criar({ placeholder: "Escreva o relato. Tudo é salvo automaticamente enquanto você escreve.", altura: 260, modelosPessoais: meusModelos });
+    $("rlEd").append(ed.el);
     const bkKey = "relato-" + p.id, bk = lerBackup(bkKey);
-    if (bk && bk.dados && bk.dados.txt) { $("rlTxt").value = bk.dados.txt; if (bk.dados.data) $("rlData").value = bk.dados.data; $("asStatus").textContent = "Texto recuperado do aparelho; será salvo agora."; }
-    const coletar = () => ({ txt: V("rlTxt"), data: V("rlData") });
+    const paraHtml = t => String(t || "").split(/\n{2,}/).map(x => "<p>" + E(x).replace(/\n/g, "<br>") + "</p>").join("");
+    const recuperado = bk && bk.dados && (bk.dados.html || bk.dados.txt);
+    if (recuperado) { ed.set(bk.dados.html || paraHtml(bk.dados.txt)); if (bk.dados.data) $("rlData").value = bk.dados.data; $("asStatus").textContent = "Texto recuperado do aparelho; será salvo agora."; }
+    const coletar = () => ({ html: ed.get(), data: V("rlData"), tipo: V("rlTipo") });
+    const gravar = async row => { if (relId) await ok(sb.from("evolucoes").update(row).eq("id", relId)); else { const n = await ok(sb.from("evolucoes").insert(row).select("id").single()); relId = n.id; } };
     const salvar = async () => {
-      const txt = V("rlTxt").trim(); if (!txt) return;
-      const row = { paciente_id: p.id, profissional_id: pro.id, data: new Date(V("rlData") + ":00-04:00").toISOString(), tipo: V("rlTipo"), conteudo: paraHtml(txt) };
-      if (relId) await ok(sb.from("evolucoes").update(row).eq("id", relId)); else { const n = await ok(sb.from("evolucoes").insert(row).select("id").single()); relId = n.id; }
+      const conteudo = ed.get(); if (!conteudo) return;
+      const row = { paciente_id: p.id, profissional_id: pro.id, data: new Date(V("rlData") + ":00-04:00").toISOString(), tipo: V("rlTipo"), conteudo };
+      try { await gravar(row); }
+      catch (e) { if (/evolucoes_tipo_check|check constraint/i.test(e.message || "") && row.tipo !== "relato" && row.tipo !== "retorno" && row.tipo !== "outro") { row.tipo = "outro"; await gravar(row); toast("Este tipo de relato ainda não foi ativado no banco: salvei como “Outro”.", true); } else throw e; }
     };
-    const as = autoSalvar(corpo.querySelector(".sect"), salvar, bkKey, coletar); if (bk && bk.dados && bk.dados.txt) as.agora().catch(() => {});
+    const as = autoSalvar(corpo.querySelector(".sect"), salvar, bkKey, coletar); if (recuperado) as.agora().catch(() => {});
     $("rlNovo").onclick = async () => { await as.agora(); relId = null; PR.pendentes = 0; try { localStorage.removeItem("pr-" + bkKey); } catch (e) {} viewRelatos(ctx, corpo); };
-    corpo.querySelectorAll("[data-edit]").forEach(a => a.onclick = ev => { ev.preventDefault(); const e = evs.find(x => x.id === a.dataset.edit); relId = e.id; $("rlTxt").value = (e.conteudo || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>\s*<p>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"); $("rlTipo").value = e.tipo; $("rlData").value = new Date(e.data).toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T"); window.scrollTo({ top: 0, behavior: "smooth" }); toast("Editando — as alterações são salvas sozinhas."); });
+    function editar(e) { relId = e.id; ed.set(corpoHtml(e)); $("rlTipo").value = e.tipo; $("rlData").value = new Date(e.data).toLocaleString("sv-SE", { timeZone: TZ }).slice(0, 16).replace(" ", "T"); window.scrollTo({ top: 0, behavior: "smooth" }); ed.foco(); toast("Editando: as alterações são salvas sozinhas."); }
+    function baseNova(e) { if (!ed.vazio() && !confirm("Substituir o que está no editor por uma cópia deste relato?")) return; relId = null; ed.set(corpoHtml(e)); $("rlTipo").value = e.tipo; $("rlData").value = nowLocal(); window.scrollTo({ top: 0, behavior: "smooth" }); ed.foco(); toast("Cópia carregada. Edite à vontade: vai ser salvo como um relato novo."); salvar().catch(() => {}); }
   }
 
   // ================= DOCUMENTOS =================
