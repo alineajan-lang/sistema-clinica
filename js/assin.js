@@ -1,7 +1,6 @@
 // Assinatura eletrônica no Essária: cada login (recepção e cada profissional) cadastra a própria assinatura desenhada;
 // os documentos saem com a assinatura e um carimbo (quem assinou, quando, código de verificação) e podem ser conferidos pelo código.
 window.ASSIN = (function () {
-  let cache;
   // ---- desenhar a assinatura (mouse, caneta ou dedo) ----
   function pad(titulo, dica) {
     return new Promise(resolve => {
