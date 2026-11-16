@@ -13,7 +13,7 @@ window.PDFDOC = (function () {
   const dbr = iso => String(iso || "").split("-").reverse().join("/");
   const idadeDe = n => { if (!n) return ""; const a = new Date(n + "T12:00:00"), h = new Date(); let i = h.getFullYear() - a.getFullYear(); if (h.getMonth() < a.getMonth() || (h.getMonth() === a.getMonth() && h.getDate() < a.getDate())) i--; return i >= 0 && i < 130 ? i + " anos" : ""; };
   function relTitulo(area) { const e = (area || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); if (e.includes("fonoaud")) return "Relatório fonoaudiológico"; if (e.includes("psicopedag")) return "Relatório psicopedagógico"; if (e.includes("neuropsic")) return "Relatório neuropsicológico"; if (e.includes("psicolog")) return "Relatório psicológico"; if (/psiquiat|cardio|neuro|gineco|cirurg|medic/.test(e)) return "Relatório médico"; return "Relatório de atendimento"; }
-  function titulo(d) { return { receita: d.ctrl ? "Receituário de controle especial" : "Receituário", exames: "Solicitação de exames", relatorio: relTitulo(d.pro.area), declaracao: "Declaração de comparecimento", encaminhamento: "Encaminhamento", recibo: "Recibo" + (d.recibo && d.recibo.numero ? " nº " + d.recibo.numero : ""), risco: "Avaliação de risco cirúrgico", anamnese: d.anam ? d.anam.titulo : "Anamnese" }[d.tipo] || "Documento"; }
+  function titulo(d) { return { receita: d.ctrl ? "Receituário de controle especial" : "Receituário", exames: "Solicitação de exames", relatorio: relTitulo(d.pro.area), declaracao: "Declaração de comparecimento", encaminhamento: "Encaminhamento", recibo: "Recibo" + (d.recibo && d.recibo.numero ? " nº " + d.recibo.numero : ""), risco: "Avaliação de risco cirúrgico", anamnese: d.anam ? d.anam.titulo : "Anamnese", termo: "Termo de consentimento", contrato: "Contrato de prestação de serviços" }[d.tipo] || "Documento"; }
   const DOC_LEE = ["Cirurgia de alto risco (intraperitoneal, intratorácica ou vascular suprainguinal)", "Doença arterial coronariana (infarto prévio, angina, teste de isquemia positivo, uso de nitrato ou onda Q)", "Insuficiência cardíaca", "Doença cerebrovascular (AVC ou AIT)", "Diabetes em uso de insulina", "Creatinina pré-operatória acima de 2 mg/dL"];
 
   async function gerar(d) {
@@ -73,6 +73,8 @@ window.PDFDOC = (function () {
         bloco("Profissional responsável pelo atendimento", (d.pro.nome || "") + (d.pro.registro ? "  ·  " + [d.pro.area, d.pro.registro].filter(Boolean).join(" · ") : ""));
         if (ses.length) { garante(14); rotulo("Sessões cobertas por este valor (" + n + ")", ML, y); y += 5.5; ses.forEach(s => { garante(6); fonte("Mulish", "normal", 10.2, T.tinta); doc.text("•  " + dbr(s.data) + (s.hora ? " às " + s.hora : "") + "  —  " + (s.servico || "serviço não informado"), ML + 2, y); y += linhaH(10.2) + 0.6; }); y += 3; }
         bloco("Observações", rc.obs);
+      } else if (d.tipo === "termo" || d.tipo === "contrato") {
+        y += 1; paragrafos(d.texto);
       } else if (d.tipo === "encaminhamento") {
         y += 2; fonte("Mulish", "normal", 11.5, T.tinta); const t1 = "Encaminho o(a) paciente " + (d.pac.nome || "") + " para avaliação e conduta em " + (d.enc.para || "—") + (d.enc.dest ? ", aos cuidados de " + d.enc.dest : "") + "."; doc.splitTextToSize(t1, LW).forEach(l => { garante(7); doc.text(l, ML, y); y += linhaH(11.5) + 1; }); y += 4;
         bloco("Motivo do encaminhamento", d.enc.motivo); bloco("Resumo clínico", d.enc.resumo); bloco("CID-10", d.indic);
@@ -97,10 +99,24 @@ window.PDFDOC = (function () {
       }
       // assinatura (com espaço para assinatura Gov.br) e, no controle especial, quadros de comprador e fornecedor
       let yb = ctrl ? 222 : 246; if (y > yb - 6) { novaPagina(false); }
-      fonte("Mulish", "normal", 10, T.tinta); doc.text("Manaus, " + dataExtensa(d.data) + ".", ML, yb + 9);
+      const duasAss = d.tipo === "termo" || d.tipo === "contrato", ga = !!(d.assin && d.assin.tipo === "gestao");
+      fonte("Mulish", "normal", 10, T.tinta); doc.text("Manaus, " + dataExtensa(d.data) + ".", ML, duasAss ? yb - 3 : yb + 9);
       doc.setDrawColor(T.tinta[0], T.tinta[1], T.tinta[2]); doc.setLineWidth(0.3); doc.line(112, yb + 9, MR, yb + 9);
-      const rec = d.tipo === "recibo"; fonte("Mulish", "bold", 10.5, T.tinta); doc.text(rec ? "Administração" : (d.pro.nome || ""), 152, yb + 14.2, { align: "center" });
-      const cred = rec ? T.nome : [d.pro.area, d.pro.registro, d.pro.rqe ? "RQE " + String(d.pro.rqe).replace(/^RQE\s*/i, "") : ""].filter(Boolean).join(" · "); fonte("Mulish", "normal", 8.8, T.suave); if (cred) doc.text(cred, 152, yb + 18.6, { align: "center" });
+      const poeAss = (img, cx) => { try { const ip = doc.getImageProperties(img), w = Math.min(56, 17 * ip.width / ip.height), hh = w * ip.height / ip.width; doc.addImage(img, "PNG", cx - w / 2, yb + 8.4 - hh, w, hh); } catch (e) {} };
+      if (d.assin && d.assin.imagem) poeAss(d.assin.imagem, 152);
+      if (duasAss) {
+        doc.line(ML, yb + 9, 100, yb + 9); if (d.assinPac && d.assinPac.imagem) poeAss(d.assinPac.imagem, (ML + 100) / 2);
+        fonte("Mulish", "bold", 10.5, T.tinta); doc.text(((d.resp && d.resp.nome) || d.pac.nome || "Paciente"), (ML + 100) / 2, yb + 14.2, { align: "center" });
+        fonte("Mulish", "normal", 8.8, T.suave); doc.text((d.resp && d.resp.nome ? "Responsável legal" + (d.resp.par ? " (" + d.resp.par + ")" : "") + (d.resp.cpf ? " · CPF " + d.resp.cpf : "") : "Paciente"), (ML + 100) / 2, yb + 18.6, { align: "center" });
+      }
+      const rec = d.tipo === "recibo"; fonte("Mulish", "bold", 10.5, T.tinta); doc.text(ga ? d.assin.nome : (rec ? "Administração" : (d.pro.nome || "")), 152, yb + 14.2, { align: "center" });
+      const cred = (rec || ga) ? T.nome : [d.pro.area, d.pro.registro, d.pro.rqe ? "RQE " + String(d.pro.rqe).replace(/^RQE\s*/i, "") : ""].filter(Boolean).join(" · "); fonte("Mulish", "normal", 8.8, T.suave); if (cred) doc.text(cred, 152, yb + 18.6, { align: "center" });
+      if (d.assin && d.assin.codigo) {
+        const dt = new Date(d.assin.em), quando = dt.toLocaleDateString("pt-BR", { timeZone: "America/Manaus" }) + " " + dt.toLocaleTimeString("pt-BR", { timeZone: "America/Manaus", hour: "2-digit", minute: "2-digit" });
+        fonte("Mulish", "normal", 6.8, T.suave);
+        const carimbo = "Assinado eletronicamente por " + d.assin.nome + " em " + quando + " (Manaus). Código " + d.assin.codigo + (ctrl ? "." : ". Confira em " + ASSIN.urlVerificar(d.assin.codigo));
+        doc.splitTextToSize(carimbo, ctrl ? 92 : 84).forEach((l, i) => doc.text(l, 152, yb + 23 + i * 2.9, { align: "center" }));
+      }
       if (ctrl) { const by = yb + 28, bh = 32, bw = (LW - 6) / 2; doc.setDrawColor(T.borda[0], T.borda[1], T.borda[2]); doc.setLineWidth(0.3); doc.roundedRect(ML, by, bw, bh, 1.5, 1.5, "S"); doc.roundedRect(ML + bw + 6, by, bw, bh, 1.5, 1.5, "S");
         rotulo("Identificação do comprador", ML + 4, by + 5.5); rotulo("Identificação do fornecedor", ML + bw + 10, by + 5.5); fonte("Mulish", "normal", 8.4, T.suave);
         ["Nome:", "RG:", "Endereço:", "Cidade/UF:    Telefone:"].forEach((t3, i) => { doc.text(t3, ML + 4, by + 12 + i * 5.6); doc.setLineWidth(0.2); doc.line(ML + 4 + (i === 3 ? 0 : doc.getTextWidth(t3) + 1.5), by + 12.8 + i * 5.6, ML + bw - 4, by + 12.8 + i * 5.6); });

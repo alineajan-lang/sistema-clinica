@@ -92,11 +92,12 @@ function shell(conteudo, ativo) {
   root.replaceChildren(h("div", { class: "app" },
     h("header", { class: "topbar" }, h("div", { class: "topin" }, logos,
       h("nav", { class: "stabs" }, nav.map(([k, t]) => h("a", { href: "#/" + k, class: "stab" + (ativo === k ? " active" : "") }, svgIco(k), h("span", {}, t)))),
-      h("div", { class: "sfoot" }, sw, h("div", {}, S.perfil.nome, h("br"), h("a", { href: "#", onclick: e => { e.preventDefault(); RECUPERANDO = true; telaNovaSenha(); } }, "Alterar senha"), " · ", h("a", { href: "#", onclick: async e => { e.preventDefault(); await sb.auth.signOut(); } }, "Sair"))))),
+      h("div", { class: "sfoot" }, sw, h("div", {}, S.perfil.nome, h("br"), h("a", { href: "#", onclick: e => { e.preventDefault(); ASSIN.telaMinha(); } }, "Minha assinatura"), " · ", h("a", { href: "#", onclick: e => { e.preventDefault(); RECUPERANDO = true; telaNovaSenha(); } }, "Alterar senha"), " · ", h("a", { href: "#", onclick: async e => { e.preventDefault(); await sb.auth.signOut(); } }, "Sair"))))),
     h("main", { id: "main", class: "mainx" + (wide ? " wide" : "") }, conteudo)));
 }
 function parseHash() { const [p, q] = (location.hash.slice(1) || "/agenda").split("?"); return { partes: p.split("/").filter(Boolean), q: new URLSearchParams(q || "") }; }
 async function rota() {
+  { const hv = parseHash(); if (hv.partes[0] === "verificar") { ASSIN.telaVerificar((hv.partes[1] || "").toUpperCase()); return; } }
   if (!S.perfil) return;
   const { partes, q } = parseHash(); const v = partes[0] || "agenda";
   shell(vazio("Carregando…"), v);
@@ -126,7 +127,7 @@ sb.auth.onAuthStateChange((ev) => {
   if (ev === "SIGNED_IN" && !S.perfil) iniciar();
 });
 window.addEventListener("hashchange", () => { if (!RECUPERANDO) rota(); });
-if (RECUPERANDO) telaNovaSenha(); else iniciar();
+if (/^#\/verificar/.test(location.hash)) ASSIN.telaVerificar((location.hash.split("/")[2] || "").split("?")[0].toUpperCase()); else if (RECUPERANDO) telaNovaSenha(); else iniciar();
 
 async function vAgenda() { return await calMontar(); }
 async function agModal(a, def) {

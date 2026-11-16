@@ -133,12 +133,39 @@
   const norm = s => semAcento(s || "");
   const dbr2 = iso => String(iso || "").split("-").reverse().join("/");
   const ehMedico = pr => !!(pr && pr.pode_prescrever);
-  function tiposDisponiveis(ctx, pr) {
-    if (ctx.gestao) return [["declaracao", "Declaração de comparecimento"], ["encaminhamento", "Encaminhamento"], ["recibo", "Recibo"]];
-    const t = []; if (ehMedico(pr)) t.push(["receita", "Receituário"], ["exames", "Solicitação de exames"]);
-    t.push(["relatorio", PDFDOC.relTitulo(pr && pr.area)]); if (ehMedico(pr)) t.push(["risco", "Risco cirúrgico"]); t.push(["declaracao", "Declaração de comparecimento"], ["encaminhamento", "Encaminhamento"]); return t;
+  function modeloTexto(D, p, ctx) {
+    const emp = ctx.emp === "atlas" ? "Clínica Atlas" : "Clínica Essência", nome = p.nome || "[nome do paciente]", cpf = p.cpf ? ", CPF " + p.cpf : "";
+    if (D.tipo === "contrato") {
+      const c = D.ct || {};
+      return ["CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE SAÚDE", "",
+        "CONTRATADA: " + emp + ", com sede em Manaus/AM, CNPJ [preencher], doravante denominada CLÍNICA.",
+        "CONTRATANTE: " + nome + cpf + ", doravante denominado(a) PACIENTE.", "",
+        "Cláusula 1ª - Objeto:", "A CLÍNICA prestará ao PACIENTE o serviço de " + (c.sv || "[serviço contratado]") + ", por profissional habilitado, de forma presencial ou on-line, conforme combinado.", "",
+        "Cláusula 2ª - Periodicidade e vigência:", (c.per || "[periodicidade e prazo]") + ".", "",
+        "Cláusula 3ª - Valor e pagamento:", (c.vl || "[valor e forma de pagamento]") + ". O pagamento deve ser feito até o dia combinado; o atraso poderá suspender novos agendamentos.", "",
+        "Cláusula 4ª - Faltas e remarcações:", "O PACIENTE deve avisar sobre faltas ou remarcações com pelo menos 24 horas de antecedência. Faltas sem aviso poderão ser cobradas conforme o valor da sessão.", "",
+        "Cláusula 5ª - Sigilo e dados pessoais:", "As informações do atendimento são sigilosas, conforme o código de ética de cada profissão. A CLÍNICA trata os dados do PACIENTE apenas para a prestação do serviço, o prontuário e a cobrança, nos termos da Lei nº 13.709/2018 (LGPD).", "",
+        "Cláusula 6ª - Rescisão:", "O PACIENTE pode encerrar o atendimento a qualquer momento, avisando a CLÍNICA. Valores de pacotes já utilizados não são reembolsáveis; sessões não utilizadas serão tratadas conforme combinado entre as partes.", "",
+        "Cláusula 7ª - Foro:", "As partes elegem o foro da comarca de Manaus/AM para resolver qualquer questão deste contrato.", "",
+        "E, por estarem de acordo, firmam este contrato eletronicamente."].join("\n");
+    }
+    const menor = D.termoMod === "menor", online = D.termoMod === "online", rn = (D.resp && D.resp.nome) || "[nome do responsável]";
+    return ["TERMO DE CONSENTIMENTO PARA ATENDIMENTO", "",
+      menor ? "Eu, " + rn + (D.resp && D.resp.cpf ? ", CPF " + D.resp.cpf : "") + ", responsável legal por " + nome + ", declaro que fui informado(a), de forma clara, sobre o atendimento que será realizado na " + emp + " e que autorizo a sua realização."
+        : "Eu, " + nome + cpf + ", declaro que fui informado(a), de forma clara, sobre o atendimento que será realizado na " + emp + " e que concordo em realizá-lo.", "",
+      "1. Atendimento:", "O atendimento é feito por profissional habilitado, de acordo com a sua área de atuação. Os objetivos, a frequência e a duração serão combinados com o(a) profissional." + (online ? " O atendimento será on-line: devo estar em local reservado e com conexão estável, e a sessão não pode ser gravada sem autorização." : ""), "",
+      "2. Sigilo:", "As informações compartilhadas no atendimento são sigilosas e protegidas pelo código de ética de cada profissão. Só podem ser reveladas nos casos previstos em lei ou com a minha autorização" + (menor ? ", sendo que, em atendimento de criança ou adolescente, o(a) profissional poderá conversar com os responsáveis sobre o que for necessário ao cuidado" : "") + ".", "",
+      "3. Dados pessoais (LGPD):", "Autorizo o uso dos dados cadastrais e de saúde para a prestação do serviço, o prontuário, a cobrança e o contato da clínica, nos termos da Lei nº 13.709/2018. Posso pedir acesso ou correção dos dados, respeitados os prazos legais de guarda do prontuário.", "",
+      "4. Faltas e remarcações:", "Devo avisar sobre faltas ou remarcações com pelo menos 24 horas de antecedência. Faltas sem aviso podem ser cobradas conforme combinado.", "",
+      "5. Direitos:", "Posso tirar dúvidas, e interromper o atendimento a qualquer momento, sem prejuízo do cuidado que me é devido.", "",
+      "Declaro que li e entendi este termo e concordo com ele."].join("\n");
   }
-  const vazioDoc = tipo => ({ tipo, data: hojeISO(), cons: "", ctrl: false, end: "", itens: [{ m: "", p: "", q: "" }], orient: "", exames: "", indic: "", obs: "", urg: false, rel: "", fin: "", dest: "", rc: {}, rg: "", hi: "", hf: "", enc: { para: "", dest: "", motivo: "", resumo: "" } });
+  function tiposDisponiveis(ctx, pr) {
+    if (ctx.gestao) return [["declaracao", "Declaração de comparecimento"], ["encaminhamento", "Encaminhamento"], ["recibo", "Recibo"], ["termo", "Termo de consentimento"], ["contrato", "Contrato de prestação de serviços"]];
+    const t = []; if (ehMedico(pr)) t.push(["receita", "Receituário"], ["exames", "Solicitação de exames"]);
+    t.push(["relatorio", PDFDOC.relTitulo(pr && pr.area)]); if (ehMedico(pr)) t.push(["risco", "Risco cirúrgico"]); t.push(["declaracao", "Declaração de comparecimento"], ["encaminhamento", "Encaminhamento"], ["termo", "Termo de consentimento"]); return t;
+  }
+  const vazioDoc = tipo => ({ tipo, data: hojeISO(), cons: "", ctrl: false, end: "", itens: [{ m: "", p: "", q: "" }], orient: "", exames: "", indic: "", obs: "", urg: false, rel: "", fin: "", dest: "", rc: {}, rg: "", hi: "", hf: "", enc: { para: "", dest: "", motivo: "", resumo: "" }, termoMod: "adulto", texto: "", resp: { nome: "", cpf: "", par: "" }, ct: { sv: "", vl: "", per: "" }, assinar: true, assinPac: null });
   function extenso(v) {
     const un = ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"], dz = ["", "", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"], ce = ["", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos", "seiscentos", "setecentos", "oitocentos", "novecentos"];
     const ate999 = n => { if (n === 100) return "cem"; const s = [], c = Math.floor(n / 100), r = n % 100; if (c) s.push(ce[c]); if (r) { if (r < 20) s.push(un[r]); else { const d = Math.floor(r / 10), u = r % 10; s.push(dz[d] + (u ? " e " + un[u] : "")); } } return s.join(" e "); };
@@ -155,12 +182,14 @@
     if (gestao) pro = pro || profsGestao[0];
     let tipos = tiposDisponiveis(ctx, pro); if (!PR.doc[p.id] || !tipos.some(t => t[0] === PR.doc[p.id].tipo)) PR.doc[p.id] = vazioDoc(tipos[0][0]);
     const D = PR.doc[p.id];
+    const podeAssinar = tipo => prof || ["declaracao", "recibo", "termo", "contrato"].includes(tipo);
     const consAtivas = consultas.filter(c => !String(c.status).startsWith("cancelada"));
 
     async function desenha() {
       pro = gestao ? (S.profs.find(x => x.id === D.pro) || profsGestao[0]) : pro; D.pro = pro && pro.id;
       tipos = tiposDisponiveis(ctx, pro);
       const reg = registroDe(pro); const medico = ehMedico(pro); const area = norm(pro && pro.area);
+      const temAss = !!(await ASSIN.minha().catch(() => null)); if (!temAss) D.assinar = false;
       let h = '<div class="note">Escolha o documento, preencha e use <b>Salvar</b> (guarda no prontuário), <b>Salvar e imprimir</b> ou <b>Baixar PDF</b>. O documento sai com a logo e as cores da ' + (ctx.emp === "atlas" ? "Atlas" : "Essência") + ', pois o paciente é da ' + (ctx.emp === "atlas" ? "Atlas" : "Essência") + ". O que você escreve aqui também é guardado automaticamente como rascunho.</div>";
       h += '<div class="row" style="margin:10px 0">' + tipos.map(([k, t]) => '<button class="btn ' + (D.tipo === k ? "btn-primary" : "btn-ghost") + '" data-tipo="' + k + '">' + E(t) + "</button>").join("") + "</div>";
       h += aviso;
@@ -185,6 +214,13 @@
         h += '<div class="two"><div class="field"><label for="rcNome">Nome do pagador (pode ser diferente do paciente)</label><input id="rcNome" type="text" value="' + E(r.pagador) + '"></div><div class="field"><label for="rcCpf">CPF do pagador</label><input id="rcCpf" type="text" inputmode="numeric" placeholder="000.000.000-00" value="' + E(r.cpf) + '"></div></div>';
         h += '<div class="lbl" style="margin-top:6px">Sessões cobertas por este valor (marque as datas)</div><div class="sect" style="max-height:260px;overflow:auto">' + (elegiveis.length ? elegiveis.map(c => '<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-ses="' + E(c.id) + '"' + (r.sel.includes(c.id) ? " checked" : "") + '> <span><b>' + E(fmtData(c.inicio)) + "</b> às " + E(hhmm(c.inicio)) + " · " + (c.servico ? "<b>" + E(c.servico.nome) + "</b>" : '<span class="chip faltou">sem serviço no agendamento</span>') + " · " + E(profNome(c.profissional_id)) + " · " + E(brl(c.valor)) + " · " + E(STATUS[c.status] || c.status) + ((c.pagamentos || []).length ? " · pago" : "") + "</span></label>").join("") : '<div class="muted">Este paciente não tem sessões lançadas.</div>') + "</div>";
         h += '<div class="three"><div class="field"><label for="rcValor">Valor recebido (R$)</label><input id="rcValor" type="number" step="0.01" value="' + E(r.valor) + '"></div><div class="field"><label for="rcForma">Forma de pagamento</label><select id="rcForma">' + Object.entries(FORMAS).map(([k, t]) => opt(t, t, FORMAS[r.forma] === t || r.forma === t)).join("") + '</select></div><div class="field"><label for="rcData">Data do pagamento</label><input id="rcData" type="date" value="' + E(r.dataPag) + '"></div></div><div class="field"><label for="rcObs">Observações (opcional)</label><input id="rcObs" type="text" value="' + E(r.obs) + '"></div><div class="note">O profissional que fez o atendimento é escolhido acima; o recibo mostra o nome e o registro dele, o pagador e as datas das sessões.</div>';
+      } else if (D.tipo === "termo" || D.tipo === "contrato") {
+        const termo = D.tipo === "termo", menor = termo && D.termoMod === "menor";
+        if (!String(D.texto || "").trim()) D.texto = modeloTexto(D, p, ctx);
+        h += termo ? '<div class="field"><label for="dcTMod">Modelo</label><select id="dcTMod">' + opt("adulto", "Adulto", D.termoMod !== "menor" && D.termoMod !== "online") + opt("menor", "Menor de idade (assinado pelo responsável)", D.termoMod === "menor") + opt("online", "Atendimento on-line", D.termoMod === "online") + "</select></div>"
+          : '<div class="two"><div class="field"><label for="dcCSv">Serviço contratado</label><input id="dcCSv" type="text" placeholder="Ex.: psicoterapia individual" value="' + E(D.ct.sv) + '"></div><div class="field"><label for="dcCVl">Valor e forma de pagamento</label><input id="dcCVl" type="text" placeholder="Ex.: R$ 450 por mês (2 sessões), via Pix" value="' + E(D.ct.vl) + '"></div></div><div class="field"><label for="dcCPer">Periodicidade e vigência</label><input id="dcCPer" type="text" placeholder="Ex.: sessões semanais, por 3 meses" value="' + E(D.ct.per) + '"></div>';
+        if (menor) h += '<div class="three"><div class="field"><label for="dcRespN">Responsável legal (nome)</label><input id="dcRespN" type="text" value="' + E(D.resp.nome) + '"></div><div class="field"><label for="dcRespC">CPF do responsável</label><input id="dcRespC" type="text" value="' + E(D.resp.cpf) + '"></div><div class="field"><label for="dcRespP">Parentesco</label><input id="dcRespP" type="text" placeholder="Mãe, pai, tutor…" value="' + E(D.resp.par) + '"></div></div>';
+        h += '<div class="row"><button class="btn btn-ghost btn-sm" id="dcTGerar">Refazer o texto com o modelo</button></div><div class="field"><label for="dcTexto">Texto do documento (você pode editar)</label><textarea id="dcTexto" style="min-height:340px">' + E(D.texto) + '</textarea></div><div class="note">Modelo geral. Peça para a assessoria jurídica da clínica revisar antes de usar com os pacientes.</div>';
       } else if (D.tipo === "risco") {
         const rc = D.rc || {}, lee = rc.lee || [], sl = (id, rot, arr, cur) => '<div class="field"><label for="' + id + '">' + rot + '</label><select id="' + id + '">' + opt("", "Escolher…") + arr.map(x => opt(x, x, cur === x)).join("") + "</select></div>", ta = (id, rot, v, hh) => '<div class="field"><label for="' + id + '">' + rot + '</label><textarea id="' + id + '" style="min-height:' + (hh || 70) + 'px">' + E(v || "") + "</textarea></div>";
         h += '<div class="note">Avaliação de risco cirúrgico. O parecer e a classificação de risco são sempre decisão do(a) médico(a); o sistema só organiza as informações e conta os pontos do índice de Lee.</div><div class="field"><label for="dcRProc">Procedimento proposto</label><input id="dcRProc" type="text" value="' + E(rc.proc || "") + '"></div><div class="two"><div class="field"><label for="dcRCir">Cirurgião, equipe ou hospital (opcional)</label><input id="dcRCir" type="text" value="' + E(rc.cir || "") + '"></div><div class="field"><label for="dcRAnest">Anestesia prevista (opcional)</label><input id="dcRAnest" type="text" value="' + E(rc.anest || "") + '"></div></div><div class="three">' + sl("dcRPorte", "Porte da cirurgia", ["Pequeno", "Médio", "Grande"], rc.porte) + sl("dcRCar", "Caráter", ["Eletiva", "Urgência"], rc.carater) + sl("dcRCap", "Capacidade funcional", ["Ruim: menos de 4 METs", "Moderada: 4 a 6 METs", "Boa: 7 a 10 METs", "Excelente: mais de 10 METs", "Não avaliada"], rc.cap) + "</div>" +
@@ -194,17 +230,20 @@
         const mk = medico ? norm(pro.area).replace(/.*(cardio|neuro|psiquiat|ginec).*/, "$1") : "", ordem = ["cardiologia", "neurologia", "psiquiatria", "ginecologia", "geral"], nomes = { cardiologia: "Cardiologia", neurologia: "Neurologia", psiquiatria: "Psiquiatria", ginecologia: "Ginecologia", geral: "Check-up geral" };
         h += '<div class="field"><label for="dcModelo">Adicionar uma lista pronta (sugestões que você pode editar)</label><select id="dcModelo">' + opt("", "Escolher…") + ordem.map(k => opt(k, nomes[k] + (norm(nomes[k]).startsWith(mk) && mk ? " (da especialidade do profissional)" : ""))).join("") + '</select></div><div class="field"><label for="dcExames">Exames solicitados (um por linha)</label><textarea id="dcExames" style="min-height:130px">' + E(D.exames) + '</textarea></div><div class="field"><label for="dcIndic">Indicação clínica / CID-10 (opcional)</label><input id="dcIndic" type="text" value="' + E(D.indic) + '"></div><div class="field"><label for="dcObs">Observações (opcional)</label><textarea id="dcObs">' + E(D.obs) + '</textarea></div><label class="chk"><input type="checkbox" id="dcUrg"' + (D.urg ? " checked" : "") + "> Marcar como urgente</label>";
       }
+      h += '<div class="sect" style="margin-top:12px"><h3>Assinatura</h3>' + (podeAssinar(D.tipo) ? '<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dcAss"' + (D.assinar !== false && temAss ? " checked" : "") + (temAss ? "" : " disabled") + '> Assinar eletronicamente com a minha assinatura</label><div class="meta">' + (temAss ? "" : "Você ainda não cadastrou a sua assinatura. ") + '<a href="#" id="dcMinhaAss">' + (temAss ? "Alterar a minha assinatura" : "Cadastrar a minha assinatura") + "</a></div>" : '<div class="note">Este documento é do(a) profissional: salve, e ele(a) assina com a própria assinatura do Essária ou pelo gov.br (botão em “Documentos salvos”).</div>') +
+        ((D.tipo === "termo" || D.tipo === "contrato") ? '<div class="row" style="margin-top:8px"><button class="btn btn-ghost" id="dcAssPac">✍ Coletar a assinatura do paciente ou responsável</button><span id="dcAssPacSt" class="meta">' + (D.assinPac ? "✓ Assinatura coletada" : "Ainda não coletada") + "</span></div>" : "") + "</div>";
       h += '<div class="row" style="margin-top:14px"><button class="btn btn-primary" id="dcSalvar" style="flex:1">Salvar</button><button class="btn btn-primary" id="dcSalvImp" style="flex:1;filter:brightness(.92)">Salvar e imprimir</button><button class="btn btn-ghost" id="dcPdf" style="flex:1">Baixar PDF</button><button class="btn btn-ghost" id="dcLimpar">Limpar</button></div><div id="dcLista"></div>';
       $("docForm").innerHTML = h; ligar(); lista();
     }
     function ler() {
       if (!$("dcData")) return D;
-      D.data = V("dcData") || hojeISO(); if ($("dcPro")) D.pro = V("dcPro"); if ($("dcCons")) D.cons = V("dcCons");
+      D.data = V("dcData") || hojeISO(); if ($("dcPro")) D.pro = V("dcPro"); if ($("dcCons")) D.cons = V("dcCons"); if ($("dcAss")) D.assinar = $("dcAss").checked;
       if (D.tipo === "receita") { D.ctrl = V("dcCtrl") === "1"; if ($("dcEnd")) D.end = V("dcEnd"); D.itens = D.itens.map((it, i) => ({ m: V("dcM" + i), p: V("dcP" + i), q: V("dcQ" + i) })); D.orient = V("dcOrient"); }
       else if (D.tipo === "declaracao") { D.rg = V("dcRg"); D.hi = V("dcHI"); D.hf = V("dcHF"); }
       else if (D.tipo === "relatorio") { D.fin = V("dcFin"); D.dest = V("dcDest"); D.rel = V("dcRel"); D.indic = V("dcIndic"); }
       else if (D.tipo === "encaminhamento") { D.enc = { para: V("dcEnPara"), dest: V("dcEnDest"), motivo: V("dcEnMotivo"), resumo: V("dcEnResumo") }; D.indic = V("dcIndic"); }
       else if (D.tipo === "recibo") { const sel = [...document.querySelectorAll("[data-ses]")].filter(c => c.checked).map(c => c.dataset.ses); D.recibo = { pagador: V("rcNome"), cpf: V("rcCpf"), valor: V("rcValor"), forma: V("rcForma"), dataPag: V("rcData"), sel, obs: V("rcObs") }; }
+      else if (D.tipo === "termo" || D.tipo === "contrato") { if ($("dcTMod")) D.termoMod = V("dcTMod"); if ($("dcRespN")) D.resp = { nome: V("dcRespN"), cpf: V("dcRespC"), par: V("dcRespP") }; if ($("dcCSv")) D.ct = { sv: V("dcCSv"), vl: V("dcCVl"), per: V("dcCPer") }; if ($("dcTexto")) D.texto = V("dcTexto"); }
       else if (D.tipo === "risco") { const lee = []; for (let i = 0; i < 6; i++) lee.push(!!($("dcRL" + i) && $("dcRL" + i).checked)); const g = id => V(id); D.rc = { proc: g("dcRProc"), cir: g("dcRCir"), anest: g("dcRAnest"), porte: g("dcRPorte"), carater: g("dcRCar"), cap: g("dcRCap"), q: g("dcRQ"), antec: g("dcRAntec"), al: g("dcRAl"), med: g("dcRMed"), pa: g("dcRPA"), fc: g("dcRFC"), fis: g("dcRFis"), ex: g("dcREx"), lee, acp: g("dcRAcp"), leip: g("dcRLeeP"), risco: g("dcRRisco"), parecer: g("dcRParecer"), rec: g("dcRRec"), val: g("dcRVal"), obs: g("dcRObs") }; D.indic = V("dcIndic"); }
       else { D.exames = V("dcExames"); D.indic = V("dcIndic"); D.obs = V("dcObs"); D.urg = !!($("dcUrg") && $("dcUrg").checked); }
       return D;
@@ -212,7 +251,7 @@
     // monta o documento pronto para o PDF (e para guardar no prontuário)
     function montar() {
       const d = ler(), pr = gestao ? S.profs.find(x => x.id === d.pro) : pro; if (!pr) throw new Error("Escolha o profissional.");
-      const doc = { tipo: d.tipo, empresa: ctx.emp, data: d.data, ctrl: !!d.ctrl, pac: Object.assign(pacDados(p), { end: d.end || pacDados(p).end }), pro: proDados(pr), itens: (d.itens || []).filter(i => String(i.m || "").trim()), orient: d.orient, exames: d.exames, indic: d.indic, obs: d.obs, urg: d.urg, rel: d.rel, fin: d.fin, dest: d.dest, rc: d.rc || {}, rg: d.rg, enc: d.enc || {} };
+      const doc = { tipo: d.tipo, empresa: ctx.emp, data: d.data, ctrl: !!d.ctrl, pac: Object.assign(pacDados(p), { end: d.end || pacDados(p).end }), pro: proDados(pr), itens: (d.itens || []).filter(i => String(i.m || "").trim()), orient: d.orient, exames: d.exames, indic: d.indic, obs: d.obs, urg: d.urg, rel: d.rel, fin: d.fin, dest: d.dest, rc: d.rc || {}, rg: d.rg, enc: d.enc || {}, texto: d.texto, resp: d.resp, termoMod: d.termoMod, ct: d.ct, assinPac: d.assinPac || null };
       const kc = d.cons ? consultas.find(c => c.id === d.cons) : null;
       doc.decl = kc ? { data: diaDe(kc.inicio), hi: hhmm(kc.inicio), hf: hhmm(kc.fim) } : { data: d.data, hi: d.hi, hf: d.hf };
       if (d.tipo === "recibo") {
@@ -223,7 +262,8 @@
       return doc;
     }
     function valida(doc) {
-      if (doc.tipo !== "recibo" && !doc.pro.registro) throw new Error("O profissional não tem registro cadastrado (CRP/CRM/CRN…). Peça à administração para preencher em Profissionais.");
+      if (["termo", "contrato"].includes(doc.tipo) && !String(doc.texto || "").trim()) throw new Error("O texto do documento está vazio.");
+      if (doc.tipo !== "recibo" && !["termo", "contrato"].includes(doc.tipo) && !doc.pro.registro) throw new Error("O profissional não tem registro cadastrado (CRP/CRM/CRN…). Peça à administração para preencher em Profissionais.");
       if (doc.tipo === "recibo") { const sem = (doc.recibo.sessoes || []).filter(s => !s.servico); if (sem.length) throw new Error("Falta o serviço no agendamento de " + sem.map(s => dbr2(s.data)).join(", ") + ". Abra o agendamento na Agenda, informe o serviço e emita o recibo de novo."); }
       if (doc.tipo === "receita" && !doc.itens.length) throw new Error("Informe ao menos um medicamento.");
       if (doc.tipo === "exames" && !String(doc.exames).trim()) throw new Error("Informe ao menos um exame.");
@@ -235,8 +275,9 @@
     async function recarregaDocs() { docs = await ok(sb.from("docs_emitidos").select("*").eq("paciente_id", p.id).order("data", { ascending: false }).order("criado_em", { ascending: false }).limit(200)); }
     async function salvarDoc() {
       const doc = montar(); valida(doc);
+      if (D.assinar !== false && podeAssinar(doc.tipo) && await ASSIN.minha()) await ASSIN.assinar(doc, prof ? { nome: doc.pro.nome, registro: doc.pro.registro, tipo: "profissional" } : { nome: S.perfil.nome, registro: "", tipo: "gestao" });
       if (doc.tipo === "recibo") { const n = await sb.from("docs_emitidos").select("id", { count: "exact", head: true }).eq("tipo", "recibo"); doc.recibo.numero = new Date().getFullYear() + "-" + String((n.count || 0) + 1).padStart(4, "0"); }
-      await ok(sb.from("docs_emitidos").insert({ paciente_id: p.id, profissional_id: gestao ? D.pro : pro.id, empresa_id: p.empresa_id, tipo: doc.tipo, data: doc.data, agendamento_id: D.cons || null, dados: doc }));
+      await ok(sb.from("docs_emitidos").insert(Object.assign({ paciente_id: p.id, profissional_id: gestao ? D.pro : pro.id, empresa_id: p.empresa_id, tipo: doc.tipo, data: doc.data, agendamento_id: D.cons || null, dados: doc }, doc.assin ? { codigo: doc.assin.codigo } : {})));
       if (prof) { try { await sb.from("rascunhos").delete().eq("paciente_id", p.id).eq("profissional_id", pro.id).eq("chave", "doc:" + D.tipo); } catch (e) {} }
       try { localStorage.removeItem("pr-doc-" + p.id + "-" + D.tipo); } catch (e) {}
       return doc;
@@ -251,9 +292,13 @@
       if ($("dcRelModelo")) $("dcRelModelo").onchange = () => { const m = REL_MODELOS[V("dcRelModelo")]; if (m && (!V("dcRel").trim() || confirm("Substituir o texto atual pela estrutura escolhida?"))) { $("dcRel").value = m; $("dcRel").dispatchEvent(new Event("input", { bubbles: true })); } };
       if ($("dcModelo")) $("dcModelo").onchange = () => { const l = EXAMES[V("dcModelo")]; if (l) { const atual = V("dcExames").split(/\r?\n/).map(x => x.trim()).filter(Boolean); $("dcExames").value = [...atual, ...l.filter(x => !atual.includes(x))].join("\n"); $("dcModelo").value = ""; $("dcExames").dispatchEvent(new Event("input", { bubbles: true })); } };
       document.querySelectorAll("[data-ses]").forEach(c => c.onchange = () => { const sel = [...document.querySelectorAll("[data-ses]")].filter(x => x.checked).map(x => x.dataset.ses), soma = consultas.filter(x => sel.includes(x.id)).reduce((s, x) => s + Number(x.valor || 0), 0); if (soma > 0) $("rcValor").value = soma.toFixed(2); const prim = consultas.filter(x => sel.includes(x.id))[0]; if (prim && $("dcPro")) { $("dcPro").value = prim.profissional_id; } });
+      if ($("dcMinhaAss")) $("dcMinhaAss").onclick = e => { e.preventDefault(); ler(); ASSIN.telaMinha(() => desenha()); };
+      if ($("dcTMod")) $("dcTMod").onchange = () => { ler(); D.texto = ""; desenha(); };
+      if ($("dcTGerar")) $("dcTGerar").onclick = () => { ler(); if (!confirm("Substituir o texto atual pelo modelo?")) return; D.texto = ""; desenha(); };
+      if ($("dcAssPac")) $("dcAssPac").onclick = async () => { ler(); const img = await ASSIN.pad("Assinatura do paciente ou responsável", "Passe o aparelho para o paciente (ou responsável) assinar na área abaixo."); if (!img) return; D.assinPac = { imagem: img, nome: (D.resp && D.resp.nome) || p.nome, em: new Date().toISOString() }; if ($("dcAssPacSt")) $("dcAssPacSt").textContent = "✓ Assinatura coletada"; };
       $("dcSalvar").onclick = async () => { try { const d = await salvarDoc(); await recarregaDocs(); toast("✓ Documento salvo no prontuário (veja em “Documentos salvos”, logo abaixo)."); PR.doc[p.id] = vazioDoc(D.tipo); PR.doc[p.id].pro = D.pro; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, PR.doc[p.id]); desenha(); } catch (e) { toast(e.message, true); } };
       $("dcSalvImp").onclick = async () => { const w = PDFDOC.janelaImpressao(); try { const d = await salvarDoc(); await recarregaDocs(); const b = await PDFDOC.gerar(d); toast("✓ Salvo. Abrindo a impressão…"); PDFDOC.imprimir(b, w, PDFDOC.nomeArq(d)); const tipo = D.tipo; PR.doc[p.id] = vazioDoc(tipo); PR.doc[p.id].pro = D.pro; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, PR.doc[p.id]); desenha(); } catch (e) { if (w) w.close(); toast(e.message, true); } };
-      $("dcPdf").onclick = async () => { try { const d = montar(); valida(d); PDFDOC.baixar(await PDFDOC.gerar(d), PDFDOC.nomeArq(d)); toast("PDF pronto."); } catch (e) { toast(e.message, true); } };
+      $("dcPdf").onclick = async () => { try { ler(); let d; if (D.assinar !== false && podeAssinar(D.tipo) && await ASSIN.minha()) { d = await salvarDoc(); await recarregaDocs(); lista(); toast("✓ Salvo e assinado eletronicamente."); } else { d = montar(); valida(d); toast("PDF pronto (sem assinatura eletrônica)."); } PDFDOC.baixar(await PDFDOC.gerar(d), PDFDOC.nomeArq(d)); } catch (e) { toast(e.message, true); } };
       $("dcLimpar").onclick = async () => { if (!confirm("Limpar o formulário?")) return; const tipo = D.tipo, pr = D.pro; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, vazioDoc(tipo)); D.pro = pr; if (prof) { try { await sb.from("rascunhos").delete().eq("paciente_id", p.id).eq("profissional_id", pro.id).eq("chave", "doc:" + tipo); } catch (e) {} } desenha(); };
       // salvamento automático do rascunho (só profissionais): a cada alteração
       if (prof) { if (PR.asDoc) PR.asDoc.parar(); PR.asDoc = autoSalvar($("docForm"), async () => { const d = ler(); const copia = JSON.parse(JSON.stringify(d)); await ok(sb.from("rascunhos").upsert({ profissional_id: pro.id, paciente_id: p.id, chave: "doc:" + d.tipo, dados: copia, atualizado_em: new Date().toISOString() }, { onConflict: "profissional_id,paciente_id,chave" })); }, "doc-" + p.id + "-" + D.tipo, () => ler()); }
@@ -265,14 +310,29 @@
       if (bk && bk.dados && (!rasc || bk.em > new Date(rasc.atualizado_em).getTime())) dados = bk.dados;
       if (dados && JSON.stringify(dados) !== JSON.stringify(Object.assign({}, vazioDoc(D.tipo), { pro: D.pro, data: D.data }))) { const pr = D.pro; Object.keys(D).forEach(k => delete D[k]); Object.assign(D, vazioDoc(D.tipo), dados); D.pro = pr || dados.pro; await desenha(); const st = $("asStatus"); if (st) st.textContent = "Rascunho recuperado (salvo automaticamente)."; }
     }
+    function govBr(x) {
+      const d = x.dados, arq = h("input", { type: "file", accept: "application/pdf" });
+      modal("Assinar com gov.br", h("div", {}, h("ol", { class: "small", style: "line-height:1.9;padding-left:18px" },
+        h("li", {}, h("button", { class: "btn-s", onclick: async () => { try { PDFDOC.baixar(await PDFDOC.gerar(Object.assign({}, d, { assin: null })), PDFDOC.nomeArq(d)); } catch (e) { toast(e.message, true); } } }, "Baixar o PDF"), " para o computador (sai com espaço para a assinatura)."),
+        h("li", {}, "Abra o ", h("a", { href: "https://assinador.iti.gov.br/", target: "_blank", rel: "noopener" }, "assinador do gov.br"), ", entre com a conta gov.br de quem assina e assine o PDF. Serve para psicólogas e também para médicas, se preferirem."),
+        h("li", {}, "Escolha abaixo o PDF já assinado e clique em Anexar: ele fica guardado na ficha, em Anexos.")), campo("PDF assinado", arq)),
+        [{ t: "Cancelar" }, { t: "Anexar", p: true, f: async () => {
+          const f = arq.files[0]; if (!f) { toast("Escolha o PDF assinado.", true); return false; }
+          const path = "pacientes/" + p.id + "/" + Date.now() + "_assinado_gov_" + semAcento(f.name).replace(/[^a-z0-9.]+/g, "_");
+          const up = await sb.storage.from("documentos").upload(path, f); if (up.error) throw new Error(up.error.message);
+          await ok(sb.from("documentos").insert({ paciente_id: p.id, profissional_id: x.profissional_id || null, titulo: "Assinado no gov.br: " + PDFDOC.titulo(d), tipo: "laudo", arquivo_path: path, extensao: ".pdf", origem: "sistema", enviado_em: new Date().toISOString() }));
+          toast("PDF assinado anexado à ficha (aba Anexos).");
+        } }]);
+    }
     function lista() {
       const el = $("dcLista"); if (!el) return;
       const nomeDoc = d => PDFDOC.titulo(d);
       el.innerHTML = docs.length ? '<div class="lbl" style="margin:16px 0 8px">Documentos salvos neste prontuário</div><div class="tbl">' + docs.map(x => { const d = x.dados || {}; const res = x.tipo === "recibo" ? (d.recibo ? "R$ " + Number(d.recibo.valor).toFixed(2).replace(".", ",") + " · " + (d.recibo.sessoes || []).length + " sessão(ões) · pagador " + (d.recibo.pagador && d.recibo.pagador.nome || "") : "") : x.tipo === "declaracao" ? "Esteve em consulta em " + fmtData((d.decl && d.decl.data || x.data) + "T12:00:00-04:00") : x.tipo === "receita" ? (d.itens || []).map(m => m.m).join("; ") : x.tipo === "exames" ? String(d.exames || "").split(/\r?\n/).filter(Boolean).slice(0, 3).join("; ") : String(d.rel || (d.enc && d.enc.motivo) || "").replace(/\s+/g, " ").slice(0, 120);
-        return '<div class="tr" style="grid-template-columns:84px minmax(0,1fr);min-width:0;align-items:start"><div>' + E(fmtData(x.data + "T12:00:00-04:00")) + '</div><div><div class="name">' + E(nomeDoc(d)) + (d.urg ? ' <span class="chip warn">urgente</span>' : "") + '</div><div class="meta">' + E(nomeCurto(profNome(x.profissional_id)) || (d.pro && d.pro.nome) || "") + (res ? " · " + E(res.length > 140 ? res.slice(0, 140) + "…" : res) : "") + '</div><div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-imp="' + E(x.id) + '">Imprimir</button><button class="btn btn-ghost btn-sm" data-dl="' + E(x.id) + '">Baixar PDF</button>' + (prof ? '<button class="btn btn-ghost btn-sm" data-uso="' + E(x.id) + '">Usar como modelo</button>' : "") + (prof || ehAdmin() ? '<button class="btn btn-ghost btn-sm" data-del="' + E(x.id) + '">Excluir</button>' : "") + "</div></div></div>"; }).join("") + "</div>" : '<div class="note" style="margin-top:12px">Nenhum documento salvo ainda.</div>';
+        return '<div class="tr" style="grid-template-columns:84px minmax(0,1fr);min-width:0;align-items:start"><div>' + E(fmtData(x.data + "T12:00:00-04:00")) + '</div><div><div class="name">' + E(nomeDoc(d)) + (d.urg ? ' <span class="chip warn">urgente</span>' : "") + (d.assin ? ' <span class="chip realizada" title="Código ' + E(d.assin.codigo) + '">✓ assinado eletronicamente · ' + E(d.assin.codigo) + "</span>" : "") + '</div><div class="meta">' + E(nomeCurto(profNome(x.profissional_id)) || (d.pro && d.pro.nome) || "") + (res ? " · " + E(res.length > 140 ? res.slice(0, 140) + "…" : res) : "") + '</div><div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-imp="' + E(x.id) + '">Imprimir</button><button class="btn btn-ghost btn-sm" data-dl="' + E(x.id) + '">Baixar PDF</button><button class="btn btn-ghost btn-sm" data-gov="' + E(x.id) + '">Assinar com gov.br</button>' + (prof ? '<button class="btn btn-ghost btn-sm" data-uso="' + E(x.id) + '">Usar como modelo</button>' : "") + (prof || ehAdmin() ? '<button class="btn btn-ghost btn-sm" data-del="' + E(x.id) + '">Excluir</button>' : "") + "</div></div></div>"; }).join("") + "</div>" : '<div class="note" style="margin-top:12px">Nenhum documento salvo ainda.</div>';
       const achar = id => docs.find(x => x.id === id);
       el.querySelectorAll("[data-imp]").forEach(b => b.onclick = async () => { const w = PDFDOC.janelaImpressao(); try { const d = achar(b.dataset.imp).dados; PDFDOC.imprimir(await PDFDOC.gerar(d), w, PDFDOC.nomeArq(d)); } catch (e) { if (w) w.close(); toast(e.message, true); } });
       el.querySelectorAll("[data-dl]").forEach(b => b.onclick = async () => { try { const d = achar(b.dataset.dl).dados; PDFDOC.baixar(await PDFDOC.gerar(d), PDFDOC.nomeArq(d)); } catch (e) { toast(e.message, true); } });
+      el.querySelectorAll("[data-gov]").forEach(b => b.onclick = () => govBr(achar(b.dataset.gov)));
       el.querySelectorAll("[data-uso]").forEach(b => b.onclick = () => { const x = achar(b.dataset.uso).dados; const n = Object.assign(vazioDoc(x.tipo), { pro: D.pro, rel: x.rel, fin: x.fin, dest: x.dest, rc: x.rc, rg: x.rg, itens: (x.itens && x.itens.length) ? x.itens : [{ m: "", p: "", q: "" }], orient: x.orient, exames: x.exames, indic: x.indic, obs: x.obs, urg: x.urg, ctrl: x.ctrl, enc: x.enc || {} }); Object.keys(D).forEach(k => delete D[k]); Object.assign(D, n); desenha(); toast("Carregado no formulário, com a data de hoje."); });
       el.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Excluir este documento do prontuário?")) return; try { await ok(sb.from("docs_emitidos").delete().eq("id", b.dataset.del)); toast("Excluído."); PR.reabrir && PR.reabrir(); } catch (e) { toast(e.message, true); } });
     }
