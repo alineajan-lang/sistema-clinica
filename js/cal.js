@@ -18,10 +18,11 @@
   const STCHIP = { agendada: "info", confirmada: "info", realizada: "ok", faltou: "late", cancelada_paciente: "", cancelada_clinica: "" };
   const prefs = (() => { try { return JSON.parse(localStorage.getItem("calprefs") || "{}"); } catch (e) { return {}; } })();
   const salvaPrefs = () => { try { localStorage.setItem("calprefs", JSON.stringify({ hideP: C.hideP, hh: C.hh, view: C.view, mv: C.mv })); } catch (e) {} };
-  const C = { anchor: hojeISO(), view: prefs.view || "prof", mv: prefs.mv || "lista", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null };
+  const C = { anchor: hojeISO(), view: prefs.view || "prof", mv: prefs.mv || "lista", hideP: prefs.hideP || {}, hh: prefs.hh || 64, cons: [], blq: [], range: null, cq: "", allCols: false, sideOpen: false, miniM: null, modal: null, area: "" };
   window.CAL = C;
 
-  const visP = id => !C.hideP[id];
+  const areaDe = id => (S.profs.find(p => p.id === id) || {}).area;
+  const visP = id => !C.hideP[id] && (!C.area || areaDe(id) === C.area);
   const profsAtivos = () => S.profs.filter(p => p.ativo && atendeEm(p));
   // Cada profissional tem sempre a MESMA cor (Essência e Atlas), em qualquer login: a cor sai da posição fixa do nome nesta lista
   const ORDEM_COR = ["aline araujo", "ana barbara", "ana beatriz", "ana cristina", "ana paula", "cesar alcantara", "dayana flores", "angela maria", "edilcileia lima", "evellyn silva", "florence amanda", "flavia libia", "fernanda manuela", "hethelen awdry", "jhoanne luz", "juliana carolina", "juliane assuncao", "luis filipe", "mayna leal", "rebeca guimaraes", "ricardo oliveira", "rosemeire simoes"];
@@ -113,11 +114,21 @@
   }
   function agList() {
     if (ehProf()) return "";
-    const lista = profsAtivos(), oc = lista.some(p => C.hideP[p.id]);
+    const todos = profsAtivos(), lista = todos.filter(p => !C.area || p.area === C.area), oc = lista.some(p => C.hideP[p.id]), areas = [...new Set(todos.map(p => p.area).filter(Boolean))].sort();
+    const selArea = areas.length > 1 ? '<div class="lbl" style="margin:16px 0 6px">Especialidade</div><select id="areaSel" class="areasel"><option value="">Todas as especialidades</option>' + areas.map(a => '<option value="' + esc(a) + '"' + (C.area === a ? " selected" : "") + ">" + esc(a) + "</option>").join("") + "</select>" : "";
     const grupo = (tipo, titulo) => { const ps = lista.filter(p => empTipo(p) === tipo); if (!ps.length) return "";
       return '<div class="grp"><span class="etag ' + tipo + '">' + titulo + "</span></div>" + ps.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join(""); };
-    return '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
+    return selArea + '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
       grupo("e", "Essência") + grupo("a", "Atlas") + grupo("ea", "Essência + Atlas") + "</div>";
+  }
+  // Confirmações de hoje (como no Doctoralia): quem já confirmou e quem ainda falta; a recepção confirma com um clique e o profissional vê o ✓ na própria agenda
+  function confHoje() {
+    const hj = hojeISO(), L = consVis().filter(c => c.data === hj && !CANC(c.status) && c.status !== "realizada" && c.status !== "faltou" && visP(c.profissionalId)).sort((a, b) => a.hora.localeCompare(b.hora));
+    if (!L.length) return "";
+    const nc = L.filter(c => c.status === "confirmada").length, gest = ehGestao();
+    return '<div class="lbl" style="margin:16px 0 4px">Confirmações de hoje</div><div class="meta" style="margin-bottom:6px">✓ ' + nc + " confirmada" + (nc === 1 ? "" : "s") + " · ○ " + (L.length - nc) + ' aguardando</div><div class="confl">' +
+      L.map(c => '<div class="confr"><span class="confh">' + esc(c.hora) + '</span><span class="confn"><b>' + esc(c.pacienteNome) + "</b><small>" + esc(nomeC(proNome(c.profissionalId))) + "</small></span>" +
+        (c.status === "confirmada" ? '<span class="chip ok" title="Confirmada">✓</span>' : (gest ? '<button type="button" class="btn btn-ghost btn-sm" data-act="confirmar" data-id="' + esc(c.id) + '">Confirmar</button>' : '<span class="chip" title="Aguardando confirmação">○</span>')) + "</div>").join("") + "</div>";
   }
   function listaHtml(cons) {
     const rows = cons.slice().sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
@@ -170,7 +181,7 @@
       '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
       (C.view === "prof" && !mobile && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao || ehProf() ? '<button class="btn btn-primary tb-new" data-act="newcons">+ Nova consulta</button>' : "") + strip7 + "</div>";
-    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + agList() + "</aside>";
+    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="espera">📋 Lista de espera</button><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + confHoje() + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
     const vis = cons.filter(c => !CANC(c.status)), recv = vis.reduce((a, c) => a + pagoTotal(c), 0), aber = vis.filter(c => c.status === "realizada").reduce((a, c) => a + saldoC(c), 0);
     const achou = cqn ? vis.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1).length : 0;
@@ -217,7 +228,7 @@
             if (hgt < 34) inner = '<b class="evn">' + esc(nm2) + "</b>";
             else if (hgt < 52) inner = '<b class="evn"><small>' + esc(e.hora) + "</small>" + esc(nm2) + "</b>";
             else inner = '<div class="evt"><span>' + (e._n >= 2 ? esc(e.hora) : esc(e.hora) + " – " + esc(fim)) + "</span>" + (e._n >= 3 ? "" : '<span class="evi">' + (e.obs ? "📝 " : "") + statusIcone(e.status) + "</span>") + '</div><b class="evn">' + esc(nm2) + '</b><span class="evm">' + (hgt >= 70 ? "<span>" + esc(e.servico) + "</span>" : "") + (e.pacoteNum ? "<span>Pacote #" + e.pacoteNum + " " + (pkDe(e) ? pkValHtml(pkDe(e).valor) : "") + (pkDe(e) && pkDe(e).pos[e.id] ? " sessão " + pkDe(e).pos[e.id] + "/" + pkDe(e).total : "") + "</span>" : "") + (!S.emp && hgt >= 70 ? '<span class="etag ' + (empDoCons(e) === "Atlas" ? "a" : "e") + '">' + empDoCons(e) + "</span>" : "") + pay + "</span>";
-            return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '" data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + (e.modalidade === "online" ? '<i class="onl" title="Atendimento online">💻</i>' : "") + inner + "</div>";
+            return '<div class="ev c' + (empDoCons(e) === "Atlas" ? "A" : "E") + ' ' + (CANC(e.status) ? "cancelada" : esc(e.status)) + (hgt < 34 ? " one" : "") + (e._n > 1 ? " nar" : "") + (dim ? " dim" : "") + '"' + ((gestao || ehProf()) && !mobile ? ' draggable="true"' : "") + ' data-act="cons" data-id="' + esc(e.id) + '" style="--c:' + corProf(e.profissionalId) + ";top:" + top + "px;height:" + hgt + "px;left:calc(" + left + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.hora + " · " + nome + " · " + e.servico + " · " + proNome(e.profissionalId) + " · " + (STATUS[e.status] || "")) + '">' + emk(e) + (e.modalidade === "online" ? '<i class="onl" title="Atendimento online">💻</i>' : "") + inner + "</div>";
           }).join("");
           const line = (d === hoje && nowMin >= HSTART * 60 && nowMin < HEND * 60) ? '<div class="nowline" style="top:' + ((nowMin - HSTART * 60) / 60 * HH) + 'px"></div>' : "";
           return '<div class="col' + (d === hoje ? " today" : "") + '" data-act="slot" data-d="' + d + '"' + (df.p ? ' data-p="' + esc(df.p.id) + '"' : "") + ' style="height:' + total + 'px">' + blHtml + evHtml + line + "</div>";
@@ -435,6 +446,37 @@
     toast("Bloqueio salvo" + (ids.length > 1 && !C.modal.blq ? " para " + ids.length + " profissionais." : ".")); fecha(); await recarrega(true);
   }
 
+  // ---------- lista de espera (tabela lista_espera) ----------
+  async function abreEspera() {
+    let L; try { L = await ok(sb.from("lista_espera").select("*").eq("atendido", false).order("criado_em")); } catch (e) { return toast("A lista de espera ainda não foi ativada no banco (falta rodar o SQL de criação).", true); }
+    C.espera = L;
+    const profs = S.profs.filter(p => p.ativo);
+    const form = '<div class="sect"><h3>Adicionar à lista</h3><div class="field"><label for="eNome">Nome</label><input id="eNome" type="text" autocomplete="off" placeholder="Nome do paciente"></div><div class="two"><div class="field"><label for="eTel">Telefone</label><input id="eTel" type="text"></div><div class="field"><label for="ePro">Profissional</label><select id="ePro"><option value="">Qualquer um</option>' + profs.map(p => opt(p.id, p.nome, false)).join("") + '</select></div></div><div class="field"><label for="ePref">Dias e horários que servem</label><input id="ePref" type="text" placeholder="Ex.: terças e quintas à tarde"></div><div class="field"><label for="eObs">Observação</label><textarea id="eObs"></textarea></div><div><button type="button" class="btn btn-primary btn-sm" data-act="espsalvar">Adicionar</button></div></div>';
+    const lista = L.length ? L.map(e => '<div class="mini" style="margin-bottom:8px"><div><b>' + esc(e.nome) + "</b>" + (e.telefone ? " · " + esc(e.telefone) : "") + '<div class="meta">' + (e.profissional_id ? esc(proNome(e.profissional_id)) : "Qualquer profissional") + (e.preferencia ? " · " + esc(e.preferencia) : "") + " · desde " + esc(fmtData(e.criado_em)) + "</div>" + (e.observacao ? '<div class="meta">📝 ' + esc(e.observacao) + "</div>" : "") + '</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn btn-primary btn-sm" data-act="espagendar" data-id="' + esc(e.id) + '">Agendar</button><button type="button" class="btn btn-ghost btn-sm" data-act="espok" data-id="' + esc(e.id) + '">Já atendido</button><button type="button" class="btn btn-ghost btn-sm" data-act="espdel" data-id="' + esc(e.id) + '">Excluir</button></div></div>').join("") : '<div class="empty">Ninguém na lista de espera.</div>';
+    drawer("Lista de espera (" + L.length + ")", '<div class="sect">' + lista + "</div>" + form, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button>');
+  }
+  async function salvaEspera() {
+    const nome = val("eNome"); if (!nome) return toast("Informe o nome.", true);
+    await ok(sb.from("lista_espera").insert({ nome, telefone: val("eTel") || null, profissional_id: val("ePro") || null, preferencia: val("ePref") || null, observacao: val("eObs") || null, empresa_id: S.emp || null }));
+    toast("Adicionado à lista de espera."); await abreEspera();
+  }
+  // ---------- arrastar a consulta para remarcar ----------
+  let arrasta = null;
+  async function moveCons(a, col, ev) {
+    const c = C.cons.find(x => x.id === a.id); if (!c) return;
+    const r = col.getBoundingClientRect(), mins = Math.round((HSTART * 60 + (ev.clientY - r.top - a.dy) / C.hh * 60) / 15) * 15, hora = fromMin(Math.max(HSTART * 60, Math.min(1425, mins))), dia = col.dataset.d, pro = ehProf() ? c.profissionalId : (col.dataset.p || c.profissionalId);
+    if (dia === c.data && hora === c.hora && pro === c.profissionalId) return;
+    if (!CANC(c.status)) { const cf = conflito(c.id, pro, dia, hora, c.duracao); if (cf) return toast(proNome(pro) + " já atende " + cf.pacienteNome + " às " + cf.hora + ". Escolha outro horário.", true); }
+    if (!confirm("Mover " + c.pacienteNome + " para " + fmtData(dia + "T12:00:00-04:00") + " às " + hora + (pro !== c.profissionalId ? " com " + proNome(pro) : "") + "?")) return;
+    const ini = new Date(toISO(dia, hora)), fm = new Date(ini.getTime() + c.duracao * 60000);
+    try { await ok(sb.from("agendamentos").update({ inicio: ini.toISOString(), fim: fm.toISOString(), profissional_id: pro }).eq("id", c.id)); toast("Consulta movida."); await recarrega(true); } catch (e) { toast(e.message, true); }
+  }
+  document.addEventListener("dragstart", ev => { const el = ev.target.closest && ev.target.closest(".ev[draggable]"); if (!el) return; const r = el.getBoundingClientRect(); arrasta = { id: el.dataset.id, dy: ev.clientY - r.top }; ev.dataTransfer.effectAllowed = "move"; try { ev.dataTransfer.setData("text/plain", el.dataset.id); } catch (e) {} el.classList.add("dragging"); });
+  document.addEventListener("dragend", () => { arrasta = null; document.querySelectorAll(".dragging,.dropcol").forEach(e => e.classList.remove("dragging", "dropcol")); });
+  document.addEventListener("dragover", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; });
+  document.addEventListener("drop", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); const a = arrasta; arrasta = null; moveCons(a, col, ev); });
+  document.addEventListener("change", ev => { if (ev.target.id === "areaSel") { C.area = ev.target.value; pinta(); } });
+
   // ---------- eventos ----------
   const acoes = {
     hoje() { C.anchor = hojeISO(); recarrega(); }, nav(el) { const n = +el.dataset.n; C.anchor = addDias(C.anchor, C.view === "prof" ? n : n * 7); recarrega(); },
@@ -446,6 +488,11 @@
     cons(el, ev) { ev.stopPropagation(); abreCons(el.dataset.id); }, newcons() { abreCons(null, { data: C.anchor }); }, newblq() { abreBlq(null, { pro: "*" }); },
     blq(el, ev) { ev.stopPropagation(); abreBlq(el.dataset.id); },
     slot(el, ev) { if (!(ehGestao() || ehProf()) || ev.target.closest(".ev,.bl")) return; const r = el.getBoundingClientRect(), y = ev.clientY - r.top, mins = Math.round((HSTART * 60 + y / C.hh * 60) / 15) * 15; abreCons(null, { data: el.dataset.d, hora: fromMin(Math.max(0, Math.min(1425, mins))), pro: el.dataset.p || undefined }); },
+    confirmar(el, ev) { ev.stopPropagation(); ok(sb.from("agendamentos").update({ status: "confirmada" }).eq("id", el.dataset.id)).then(() => { toast("Consulta confirmada."); return recarrega(true); }).catch(e => toast(e.message, true)); },
+    espera() { abreEspera().catch(e => toast(e.message, true)); }, espsalvar() { salvaEspera().catch(e => toast(e.message, true)); },
+    espagendar(el) { const e = (C.espera || []).find(x => x.id === el.dataset.id); if (!e) return; fecha(); abreCons(null, { nome: e.nome, pid: e.paciente_id || "", pro: e.profissional_id || undefined, data: C.anchor }); },
+    espok(el) { ok(sb.from("lista_espera").update({ atendido: true }).eq("id", el.dataset.id)).then(() => { toast("Saiu da lista de espera."); return abreEspera(); }).catch(e => toast(e.message, true)); },
+    espdel(el) { if (!confirm("Excluir esta pessoa da lista de espera?")) return; ok(sb.from("lista_espera").delete().eq("id", el.dataset.id)).then(() => abreEspera()).catch(e => toast(e.message, true)); },
     closemodal() { fecha(); }, savecons() { salvaCons().catch(e => toast(e.message, true)); }, quick(el) { const s = el.dataset.s; if ($("fSt")) $("fSt").value = s; salvaCons(s).catch(e => toast(e.message, true)); },
     payadd() { const v = Number(val("fValor")) || 0, t = readPays().reduce((a, x) => a + x.valor, 0), box = $("payBox"), tmp = document.createElement("div"); tmp.innerHTML = payRow({ valor: Math.max(0, Math.round((v - t) * 100) / 100) }); box.appendChild(tmp.firstChild); updPaySum(); },
     paydel(el) { el.closest(".prow").remove(); updPaySum(); }, delcons() { excluiCons().catch(e => toast(e.message, true)); }, saveblq() { salvaBlq().catch(e => toast(e.message, true)); },

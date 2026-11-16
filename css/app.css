@@ -89,14 +89,14 @@ body[data-emp=atlas]{--verde:#997d48;--verde-esc:#7a6236;--verde-cl:#f1ead9;--ro
 .kpi-t{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:600}
 .kpi-v{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
-.bars{display:flex;flex-direction:column;gap:7px}
-.bar{display:grid;grid-template-columns:130px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px}
-.bar .bl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.bar .bt{height:10px;background:var(--verde-cl);border-radius:6px;overflow:hidden}.bar .bt i{display:block;height:100%;background:var(--verde);border-radius:6px}
-.bar .bv{font-variant-numeric:tabular-nums;font-weight:700;color:var(--mut);font-size:12.5px;white-space:nowrap}
+.rbars{display:flex;flex-direction:column;gap:7px}
+.rbar{display:grid;grid-template-columns:130px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px}
+.rbar .rbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.rbar .rbt{height:10px;background:var(--verde-cl);border-radius:6px;overflow:hidden}.rbar .rbt i{display:block;height:100%;background:var(--verde);border-radius:6px}
+.rbar .rbv{font-variant-numeric:tabular-nums;font-weight:700;color:var(--mut);font-size:12.5px;white-space:nowrap}
 .tw{overflow-x:auto}.tw table{min-width:640px}
 td.right,th.right{text-align:right}
-.seg{display:flex;gap:6px;flex-wrap:wrap}
-.seg button{border-radius:99px;padding:6px 13px;font-size:13px}.seg button.on{background:var(--verde-cl);color:var(--verde-esc);border-color:transparent;font-weight:600}
-.seg .c{font-size:11.5px;color:var(--mut);margin-left:2px}
-@media (max-width:700px){.tw table{min-width:0}.bar{grid-template-columns:90px minmax(0,1fr) auto}}
+.segr{display:flex;gap:6px;flex-wrap:wrap}
+.segr button{border-radius:99px;padding:6px 13px;font-size:13px}.segr button.on{background:var(--verde-cl);color:var(--verde-esc);border-color:transparent;font-weight:600}
+.segr .c{font-size:11.5px;color:var(--mut);margin-left:2px}
+@media (max-width:700px){.tw table{min-width:0}.rbar{grid-template-columns:90px minmax(0,1fr) auto}}

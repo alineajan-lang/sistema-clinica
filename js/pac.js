@@ -14,7 +14,7 @@ async function vPacotes(q) {
     (!busca || semAcento((l.p.paciente ? l.p.paciente.nome : "") + " " + (l.p.numero || "")).includes(semAcento(busca))));
   const empTxt = !S.emp ? "Essência e Atlas" : (empCod(S.emp) === "atlas" ? "Atlas" : "Essência");
   const inBusca = h("input", { placeholder: "Buscar por paciente ou nº do pacote…", value: busca, style: "min-width:240px;flex:1", onkeydown: e => e.key === "Enter" && go({ q: e.target.value }) });
-  const seg = h("div", { class: "seg" }, [["uso", "Em uso"], ["concl", "Concluídos"], ["todos", "Todos"]].map(([k, t]) => h("button", { class: est === k ? "on" : "", onclick: () => go({ s: k }) }, t, h("span", { class: "c" }, " " + linhas.filter(l => k === "todos" || (k === "uso" ? l.emUso : !l.emUso)).length))));
+  const seg = h("div", { class: "segr" }, [["uso", "Em uso"], ["concl", "Concluídos"], ["todos", "Todos"]].map(([k, t]) => h("button", { class: est === k ? "on" : "", onclick: () => go({ s: k }) }, t, h("span", { class: "c" }, " " + linhas.filter(l => k === "todos" || (k === "uso" ? l.emUso : !l.emUso)).length))));
   const selTipo = sel([["", "Todos os tipos"]].concat(tipos.map(t => [t, t])), tipo, { style: "width:auto", onchange: e => go({ t: e.target.value }) });
   const selPg = sel([["", "Todos os pagamentos"], ["pago", "Pagos"], ["pend", "Com saldo a receber"]], pagto, { style: "width:auto", onchange: e => go({ pg: e.target.value }) });
   const POR = 100, ini = (pag - 1) * POR, vis = filtradas.slice(ini, ini + POR);

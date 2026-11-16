@@ -35,7 +35,7 @@ const STATUS_ORD = ["realizada", "agendada", "confirmada", "faltou", "cancelada_
 const kpi = (t, v, s) => h("div", { class: "kpi" }, h("div", { class: "kpi-t" }, t), h("div", { class: "kpi-v" }, v), s && h("div", { class: "small muted" }, s));
 function barrasRel(itens, fmt) {
   const max = Math.max(1, ...itens.map(i => i[1]));
-  return h("div", { class: "bars" }, itens.map(([rot, v]) => h("div", { class: "bar" }, h("span", { class: "bl" }, rot), h("span", { class: "bt" }, h("i", { style: "width:" + Math.round(v / max * 100) + "%" })), h("span", { class: "bv" }, fmt ? fmt(v) : v))));
+  return h("div", { class: "rbars" }, itens.map(([rot, v]) => h("div", { class: "rbar" }, h("span", { class: "rbl" }, rot), h("span", { class: "rbt" }, h("i", { style: "width:" + Math.round(v / max * 100) + "%" })), h("span", { class: "rbv" }, fmt ? fmt(v) : v))));
 }
 const tabelaRel = (cab, linhas, vazioTxt, dir) => linhas.length
   ? h("div", { class: "tw" }, h("table", {}, h("thead", {}, h("tr", {}, cab.map((t, i) => h("th", { class: (dir || []).includes(i) ? "right" : "" }, t)))), h("tbody", {}, linhas.map(l => h("tr", {}, l.map((c, i) => h("td", { class: (dir || []).includes(i) ? "right nowrap" : "" }, c)))))))

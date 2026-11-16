@@ -323,3 +323,12 @@ button,a,.stab,.col,.dh,.tr.click,tr.click,.minigrid button,.ev,.bl{touch-action
   .mv-sem .ev .evn{overflow-wrap:normal;word-break:normal}
   .mv-dia .ev{padding-right:6px}
 }
+
+/* ===== confirmações de hoje, especialidade, arrastar ===== */
+.confl{display:flex;flex-direction:column;gap:4px}
+.confr{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 7px;border:1px solid var(--bd,#e4dfd2);border-radius:9px;font-size:12.5px}
+.confh{font-weight:700;font-variant-numeric:tabular-nums}
+.confn{min-width:0}.confn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.confn small{display:block;color:var(--mut,#7a7a72)}
+.areasel{width:100%}
+.ev.dragging{opacity:.45}
+.ev[draggable=true]{cursor:grab}
