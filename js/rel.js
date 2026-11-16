@@ -120,3 +120,4 @@ async function vRelatorios(q) {
     tabs, h("div", { class: "row" }, selPer, per.p === "custom" && iDe, per.p === "custom" && iAte, selProf)), corpo,
     h("div", { class: "small muted" }, "Despesas, taxas e o resultado de cada empresa ficam no financeiro da Essência e da Atlas (planilha), que recebem os pagamentos daqui automaticamente."));
 }
+const sum = (lista, f) => lista.reduce((s, x) => s + Number(f ? f(x) : x || 0), 0);
