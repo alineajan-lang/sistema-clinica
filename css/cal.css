@@ -347,3 +347,26 @@ button,a,.stab,.col,.dh,.tr.click,tr.click,.minigrid button,.ev,.bl{touch-action
 .mesv{font-size:11.5px;line-height:1.3;border-left:3px solid var(--c,#6f8a52);padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:color-mix(in srgb,var(--c,#6f8a52) 12%,transparent);border-radius:4px}
 .mesv b{font-variant-numeric:tabular-nums}
 .mesm{font-size:11px;color:var(--mut,#7a7a72);margin-top:2px}
+
+/* ===== aparência no estilo do Doctoralia (computador) ===== */
+@media (min-width:701px){
+  .agmain .toolbar{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid color-mix(in srgb,var(--ink) 10%,transparent)}
+  .range{font-size:15px;font-weight:700}
+  .viewsel{width:auto;font-weight:600;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:7px 10px}
+  .calwrap{background:var(--surface);border-radius:8px;border-color:color-mix(in srgb,var(--ink) 13%,transparent)}
+  .col{background-image:linear-gradient(color-mix(in srgb,var(--ink) 13%,transparent) 1px,transparent 1px),linear-gradient(color-mix(in srgb,var(--ink) 6%,transparent) 1px,transparent 1px);background-size:100% var(--hh),100% calc(var(--hh) / 2);border-left-color:color-mix(in srgb,var(--ink) 9%,transparent)}
+  .hl{font-weight:500;font-size:11.5px}
+  .hl.half{opacity:.7}
+  .calhead{border-bottom-color:color-mix(in srgb,var(--ink) 13%,transparent)}
+  .dh.prof{border-bottom:0;padding:8px 10px;gap:8px;align-items:center}
+  .dh.prof .pn{min-width:0;flex:1}
+  .dh.prof b{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+  .dh.prof small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
+  .ev{border-radius:4px;box-shadow:none;padding:3px 6px}
+  .ev .evn{font-size:12.5px;font-weight:700}
+  .ev .evt{font-size:10.5px}
+  .ev.cE{box-shadow:inset 4px 0 0 rgba(255,255,255,.55);padding-left:11px}
+  .ev.cA{box-shadow:inset 4px 0 0 #c9a24a;padding-left:11px}
+  .minigrid button.sel{border-radius:7px}
+  .agk .lk{display:flex;align-items:center;gap:6px;font-weight:600}
+}

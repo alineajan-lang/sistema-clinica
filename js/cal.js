@@ -119,7 +119,7 @@
     const grupo = (tipo, titulo) => { const ps = lista.filter(p => empTipo(p) === tipo); if (!ps.length) return "";
       return '<div class="grp"><span class="etag ' + tipo + '">' + titulo + "</span></div>" + ps.map(p => '<label style="--c:' + corProf(p.id) + '"><input type="checkbox" data-act="agtoggle" data-id="' + esc(p.id) + '"' + (visP(p.id) ? " checked" : "") + ">" + avatar(p) + '<span class="agn"><b>' + esc(p.nome) + "</b><small>" + esc(p.area || "") + "</small></span></label>").join(""); };
     const selEnd = '<div class="lbl" style="margin:16px 0 6px">Endereço</div><select id="modSel" class="areasel"><option value="">Todos os endereços</option><option value="presencial"' + (C.mod === "presencial" ? " selected" : "") + '>R. Verônica Cristina, 46 (presencial)</option><option value="online"' + (C.mod === "online" ? " selected" : "") + ">Telemedicina (online)</option></select>";
-    return selEnd + selArea + '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><div class="agl">' +
+    return selEnd + selArea + '<div class="lbl" style="margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center"><span>Agendas</span>' + (oc ? '<button type="button" class="btn btn-ghost btn-sm" data-act="agall">Marcar todas</button>' : "") + '</div><input id="agQ" type="search" class="areasel" placeholder="Buscar por agenda" style="margin-bottom:6px"><div class="agl">' +
       grupo("e", "Essência") + grupo("a", "Atlas") + grupo("ea", "Essência + Atlas") + "</div>";
   }
   // Confirmações de hoje (como no Doctoralia): quem já confirmou e quem ainda falta; a recepção confirma com um clique e o profissional vê o ✓ na própria agenda
@@ -181,7 +181,7 @@
     if (mobile) { if (["lista", "dia", "sem"].indexOf(C.mv) === -1) C.mv = "lista"; C.view = C.mv === "sem" ? "semana" : "prof"; }
     const HH = (mobile && C.mv === "sem") ? 46 : C.hh; document.documentElement.style.setProperty("--hh", HH + "px");
     const days = rangeDays(), hoje = hojeISO(), dia1 = C.view === "prof", cqn = norm(C.cq);
-    const title = dia1 ? diaSemana(days[0]) : C.view === "mes" ? MESL[+C.anchor.slice(5, 7) - 1] + " " + C.anchor.slice(0, 4) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
+    const title = dia1 ? (DOW[dowOf(days[0])] + ", " + diaN(days[0]) + " de " + MES[+days[0].slice(5, 7) - 1] + " de " + days[0].slice(0, 4)) : C.view === "mes" ? MESL[+C.anchor.slice(5, 7) - 1] + " " + C.anchor.slice(0, 4) : (diaN(days[0]) + " " + MES[+days[0].slice(5, 7) - 1] + " – " + diaN(days[6]) + " " + MES[+days[6].slice(5, 7) - 1] + " " + days[6].slice(0, 4));
     const gestao = ehGestao();
     const wk = (function () { const m = monday(C.anchor), o = []; for (let i = 0; i < 7; i++) o.push(addDias(m, i)); return o; })();
     const strip7 = '<div class="daystrip">' + wk.map(d => '<button type="button" data-act="pickday" data-d="' + d + '" class="' + (d === C.anchor ? "sel " : "") + (d === hoje ? "today" : "") + '"><small>' + DOW[dowOf(d)] + "</small>" + diaN(d) + "</button>").join("") + "</div>";
@@ -189,10 +189,10 @@
       '<div class="range tb-range">' + esc(title) + '</div><span class="grow"></span><input type="search" id="cqIn" class="tb-search" placeholder="Buscar paciente na agenda" value="' + esc(C.cq) + '" style="width:min(230px,100%)">' +
       (C.view === "lista" || C.view === "mes" ? "" : '<div class="seg tb-zoom"><button data-act="zoom" data-n="-1" aria-label="Diminuir">−</button><button data-act="zoom" data-n="1" aria-label="Ampliar">+</button></div>') +
       '<div class="seg tb-mv">' + [["lista", "Horário"], ["dia", "Dia"], ["sem", "Semana"]].map(m => '<button data-act="mv" data-m="' + m[0] + '" class="' + (C.mv === m[0] ? "on" : "") + '">' + m[1] + "</button>").join("") + "</div>" +
-      '<div class="seg tb-view"><button data-act="view" data-v="prof" class="' + (C.view === "prof" ? "on" : "") + '">Dia</button><button data-act="view" data-v="semana" class="' + (C.view === "semana" ? "on" : "") + '">Semana</button><button data-act="view" data-v="mes" class="' + (C.view === "mes" ? "on" : "") + '">Mês</button><button data-act="view" data-v="lista" class="' + (C.view === "lista" ? "on" : "") + '">Lista</button></div>' +
+      '<select id="viewSel" class="tb-view viewsel" aria-label="Visão">' + [["prof", "Dia"], ["semana", "Semana"], ["mes", "Mês"], ["lista", "Lista"]].map(v => '<option value="' + v[0] + '"' + (C.view === v[0] ? " selected" : "") + ">" + v[1] + "</option>").join("") + "</select>' +
       (C.view === "prof" && !mobile && !ehProf() ? '<button class="btn btn-ghost tb-all" data-act="allcols">' + (C.allCols ? "Só com consultas" : "Mostrar todos") + "</button>" : "") +
       (gestao || ehProf() ? '<button class="btn btn-primary tb-new" data-act="newcons">+ Nova consulta</button>' : "") + strip7 + "</div>";
-    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="espera">📋 Lista de espera</button><button type="button" class="lk" data-act="newblq">🔒 Bloquear horário</button></div>' : "") + confHoje() + agList() + "</aside>";
+    const side = '<aside class="agside' + (C.sideOpen ? " open" : "") + '">' + '<div class="lgd"><span class="lgc e">E</span> Essência <span class="lgc a">A</span> Atlas</div>' + miniCal() + (gestao ? '<div class="agk"><button type="button" class="lk" data-act="espera">📋 Lista de espera</button><button type="button" class="lk" data-act="newblq">🔒 Bloquear datas</button></div>' : "") + confHoje() + agList() + "</aside>";
     const cons = consVis().filter(c => days.indexOf(c.data) !== -1 && visP(c.profissionalId));
     const vis = cons.filter(c => !CANC(c.status)), recv = vis.reduce((a, c) => a + pagoTotal(c), 0), aber = vis.filter(c => c.status === "realizada").reduce((a, c) => a + saldoC(c), 0);
     const achou = cqn ? vis.filter(c => norm(c.pacienteNome).indexOf(cqn) !== -1).length : 0;
@@ -212,10 +212,10 @@
       else {
         const n = defs.length, total = (HEND - HSTART) * HH, mob = mobile, minc = mob ? 0 : (C.view === "prof" ? 190 : 150), gw = mob ? (C.mv === "sem" ? 34 : 42) : 52, grid = gw + "px repeat(" + n + ",minmax(" + minc + "px,1fr))";
         const head = '<div class="calhead" style="grid-template-columns:' + grid + '"><div></div>' + defs.map(df => {
-          if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + " " + etag(df.p) + "</small></span></div>";
+          if (df.p) return '<div class="dh prof" style="--c:' + corProf(df.p.id) + '" title="' + esc(df.p.nome) + '">' + avatar(df.p) + '<span class="pn"><b>' + esc(df.p.nome) + "</b><small>" + esc(df.p.area || "") + " • " + empRot(df.p) + "</small></span></div>";
           return '<div class="dh' + (df.d === hoje ? " today" : "") + '" data-act="goday" data-d="' + df.d + '"><small>' + DOW[dowOf(df.d)] + "</small>" + (df.d === hoje ? "<b>" + diaN(df.d) + "</b>" : diaN(df.d)) + "</div>";
         }).join("") + "</div>";
-        const gutter = '<div class="gutter" style="height:' + total + 'px">' + Array.from({ length: HEND - HSTART }, (_, i) => '<div class="hl" style="top:' + (i * HH) + 'px">' + pad(HSTART + i) + ":00</div>").join("") + "</div>";
+        const gutter = '<div class="gutter" style="height:' + total + 'px">' + Array.from({ length: (HEND - HSTART) * 2 }, (_, i) => '<div class="hl' + (i % 2 ? " half" : "") + '" style="top:' + (i * HH / 2) + 'px">' + pad(HSTART + Math.floor(i / 2)) + (i % 2 ? ":30" : ":00") + "</div>").join("") + "</div>";
         const agora = new Date(), nowMin = +agora.toLocaleTimeString("sv-SE", { timeZone: TZ, hour: "2-digit" }) * 60 + +agora.toLocaleTimeString("sv-SE", { timeZone: TZ, minute: "2-digit" });
         const unico = profsAtivos().filter(p => visP(p.id)).length === 1 ? profsAtivos().find(p => visP(p.id)).id : null;
         const cols = defs.map(df => {
@@ -503,7 +503,8 @@
   document.addEventListener("dragend", () => { arrasta = null; document.querySelectorAll(".dragging,.dropcol").forEach(e => e.classList.remove("dragging", "dropcol")); });
   document.addEventListener("dragover", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; });
   document.addEventListener("drop", ev => { if (!arrasta) return; const col = ev.target.closest && ev.target.closest(".col"); if (!col) return; ev.preventDefault(); const a = arrasta; arrasta = null; moveCons(a, col, ev); });
-  document.addEventListener("change", ev => { if (ev.target.id === "areaSel") { C.area = ev.target.value; pinta(); } if (ev.target.id === "modSel") { C.mod = ev.target.value; pinta(); } });
+  document.addEventListener("change", ev => { if (ev.target.id === "areaSel") { C.area = ev.target.value; pinta(); } if (ev.target.id === "modSel") { C.mod = ev.target.value; pinta(); } if (ev.target.id === "viewSel") { C.view = ev.target.value; salvaPrefs(); recarrega(); } });
+  document.addEventListener("input", ev => { if (ev.target.id !== "agQ") return; const q = norm(ev.target.value); document.querySelectorAll(".agl label").forEach(l => { l.style.display = !q || norm(l.textContent).indexOf(q) !== -1 ? "" : "none"; }); });
 
   // ---------- eventos ----------
   const acoes = {
