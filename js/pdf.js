@@ -100,22 +100,18 @@ window.PDFDOC = (function () {
       // assinatura (com espaço para assinatura Gov.br) e, no controle especial, quadros de comprador e fornecedor
       let yb = ctrl ? 222 : 246; if (y > yb - 6) { novaPagina(false); }
       const duasAss = d.tipo === "termo" || d.tipo === "contrato", ga = !!(d.assin && d.assin.tipo === "gestao");
-      fonte("Mulish", "normal", 10, T.tinta); doc.text("Manaus, " + dataExtensa(d.data) + ".", ML, duasAss ? yb - 3 : yb + 9);
+      fonte("Mulish", "normal", 10, T.tinta); doc.text("Manaus, " + dataExtensa(d.data) + ".", ML, yb + 9);
       doc.setDrawColor(T.tinta[0], T.tinta[1], T.tinta[2]); doc.setLineWidth(0.3); doc.line(112, yb + 9, MR, yb + 9);
       const poeAss = (img, cx) => { try { if (!img || !img.t || !img.r) return; const hh = Math.min(16, 54 / img.r), w = hh * img.r, x0 = cx - w / 2, y0 = yb + 8 - hh; doc.setDrawColor(22, 24, 31); doc.setLineWidth(0.38); doc.setLineCap("round"); doc.setLineJoin("round");
         img.t.forEach(st => { if (st.length === 1) { doc.circle(x0 + st[0][0] * w, y0 + st[0][1] * hh, 0.2, "F"); return; } for (let i = 1; i < st.length; i++) doc.line(x0 + st[i - 1][0] * w, y0 + st[i - 1][1] * hh, x0 + st[i][0] * w, y0 + st[i][1] * hh); }); doc.setLineWidth(0.3); } catch (e) {} };
       if (d.assin) poeAss(d.assin.imagem, 152);
-      if (duasAss) {
-        doc.line(ML, yb + 9, 100, yb + 9); if (d.assinPac) poeAss(d.assinPac.imagem, (ML + 100) / 2);
-        fonte("Mulish", "bold", 10.5, T.tinta); doc.text(((d.resp && d.resp.nome) || d.pac.nome || "Paciente"), (ML + 100) / 2, yb + 14.2, { align: "center" });
-        fonte("Mulish", "normal", 8.8, T.suave); doc.text((d.resp && d.resp.nome ? "Responsável legal" + (d.resp.par ? " (" + d.resp.par + ")" : "") + (d.resp.cpf ? " · CPF " + d.resp.cpf : "") : "Paciente"), (ML + 100) / 2, yb + 18.6, { align: "center" });
-      }
       const rec = d.tipo === "recibo"; fonte("Mulish", "bold", 10.5, T.tinta); doc.text(ga ? d.assin.nome : (rec ? "Administração" : (d.pro.nome || "")), 152, yb + 14.2, { align: "center" });
-      const cred = (rec || ga) ? T.nome : [d.pro.area, d.pro.registro, d.pro.rqe ? "RQE " + String(d.pro.rqe).replace(/^RQE\s*/i, "") : ""].filter(Boolean).join(" · "); fonte("Mulish", "normal", 8.8, T.suave); if (cred) doc.text(cred, 152, yb + 18.6, { align: "center" });
+      const cred = ga ? [d.assin.cargo, T.nome].filter(Boolean).join(" · ") : rec ? T.nome : [d.pro.area, d.pro.registro, d.pro.rqe ? "RQE " + String(d.pro.rqe).replace(/^RQE\s*/i, "") : ""].filter(Boolean).join(" · "); fonte("Mulish", "normal", 8.8, T.suave); if (cred) doc.text(cred, 152, yb + 18.6, { align: "center" });
       if (d.assin && d.assin.codigo) {
         const dt = new Date(d.assin.em), quando = dt.toLocaleDateString("pt-BR", { timeZone: "America/Manaus" }) + " " + dt.toLocaleTimeString("pt-BR", { timeZone: "America/Manaus", hour: "2-digit", minute: "2-digit" });
         fonte("Mulish", "normal", 6.8, T.suave);
-        const carimbo = "Assinado eletronicamente por " + d.assin.nome + " em " + quando + " (Manaus). Código " + d.assin.codigo + (ctrl ? "." : ". Confira em " + ASSIN.urlVerificar(d.assin.codigo));
+        const dadosAss = ga ? (d.assin.cargo ? " (" + d.assin.cargo + ", " + T.nome + ")" : "") : ([d.assin.area || d.pro.area, d.assin.registro || d.pro.registro].filter(Boolean).length ? " (" + [d.assin.area || d.pro.area, d.assin.registro || d.pro.registro].filter(Boolean).join(" · ") + ")" : "");
+        const carimbo = "Assinado eletronicamente por " + d.assin.nome + dadosAss + " em " + quando + " (Manaus). Código " + d.assin.codigo + (ctrl ? "." : ". Confira em " + ASSIN.urlVerificar(d.assin.codigo));
         doc.splitTextToSize(carimbo, ctrl ? 92 : 84).forEach((l, i) => doc.text(l, 152, yb + 23 + i * 2.9, { align: "center" }));
       }
       if (ctrl) { const by = yb + 28, bh = 32, bw = (LW - 6) / 2; doc.setDrawColor(T.borda[0], T.borda[1], T.borda[2]); doc.setLineWidth(0.3); doc.roundedRect(ML, by, bw, bh, 1.5, 1.5, "S"); doc.roundedRect(ML + bw + 6, by, bw, bh, 1.5, 1.5, "S");

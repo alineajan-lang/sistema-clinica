@@ -28,32 +28,46 @@ window.ASSIN = (function () {
           { t: "Usar esta assinatura", p: true, f: async () => { if (!tem) { toast("Desenhe a assinatura primeiro.", true); return false; } resolve(exportar()); } }], "560px");
     });
   }
-  // ---- assinatura guardada de cada login ----
-  async function minha(force) {
-    if (cache !== undefined && !force) return cache;
-    const r = await sb.from("assinaturas").select("imagem").eq("perfil_id", S.perfil.id).maybeSingle();
-    let v = r.error || !r.data ? null : r.data.imagem; try { v = v && v.charAt(0) === "{" ? JSON.parse(v) : null; } catch (e) { v = null; } cache = v; return cache;
+  // ---- assinatura guardada: profissional = 1 por login; recepção = 1 por nome escolhido (Aline, Shirlem...) ----
+  const cache = {};
+  async function nomesRecepcao() {
+    if (nomesRecepcao.v) return nomesRecepcao.v;
+    let l = null; try { const r = await sb.from("configuracoes").select("valor").eq("chave", "assinantes_recepcao").maybeSingle(); l = r.data && r.data.valor; } catch (e) {}
+    nomesRecepcao.v = Array.isArray(l) && l.length ? l : [{ nome: "Aline Araújo", cargo: "Administração" }, { nome: "Shirlem", cargo: "Recepção" }]; return nomesRecepcao.v;
   }
-  async function telaMinha(depois) {
-    const atual = await minha(true);
-    const prev = atual ? h("img", { src: atual.png, alt: "Sua assinatura", style: "max-width:100%;max-height:120px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px" }) : h("div", { class: "muted" }, "Nenhuma assinatura cadastrada ainda.");
-    modal("Minha assinatura", h("div", {}, h("p", { class: "small muted" }, "Esta assinatura é usada nos documentos que você assina eletronicamente no Essária. Ela fica guardada só para o seu login (" + S.perfil.nome + ")."), prev),
-      [{ t: "Fechar" }].concat(atual ? [{ t: "Remover", d: true, f: async () => { const r = await sb.from("assinaturas").delete().eq("perfil_id", S.perfil.id); if (r.error) throw new Error(r.error.message); cache = null; toast("Assinatura removida."); if (depois) depois(); } }] : [],
+  async function minha(nome, force) {
+    nome = nome || ""; if (cache[nome] !== undefined && !force) return cache[nome];
+    const r = await sb.from("assinaturas").select("imagem").eq("perfil_id", S.perfil.id).eq("nome", nome).maybeSingle();
+    let v = r.error || !r.data ? null : r.data.imagem; try { v = v && v.charAt(0) === "{" ? JSON.parse(v) : null; } catch (e) { v = null; } cache[nome] = v; return v;
+  }
+  async function telaMinha(depois, nomeIn) {
+    const gest = ehGestao();
+    if (gest && nomeIn === undefined) {
+      const L = await nomesRecepcao(), est = await Promise.all(L.map(x => minha(x.nome, true)));
+      modal("Assinaturas da recepção", h("div", {}, h("p", { class: "small muted" }, "Na recepção, cada pessoa que assina tem a sua assinatura desenhada. Na hora de assinar um documento, escolha o nome que deve aparecer."),
+        L.map((x, k) => h("div", { class: "row", style: "margin:8px 0;align-items:center" }, h("b", { class: "grow" }, x.nome, h("span", { class: "muted small" }, " (" + x.cargo + ")")), est[k] ? h("span", { class: "chip realizada" }, "cadastrada") : h("span", { class: "chip faltou" }, "falta"),
+          h("button", { class: "btn-s", onclick: () => { const m = document.querySelector(".mask"); if (m) m.remove(); telaMinha(depois, x.nome); } }, est[k] ? "Refazer" : "Desenhar")))), [{ t: "Fechar" }]); return;
+    }
+    const nome = gest ? nomeIn : "", rot = gest ? nomeIn : S.perfil.nome, atual = await minha(nome, true);
+    const prev = atual ? h("img", { src: atual.png, alt: "Assinatura", style: "max-width:100%;max-height:120px;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:6px" }) : h("div", { class: "muted" }, "Nenhuma assinatura cadastrada ainda.");
+    modal("Assinatura de " + rot, h("div", {}, h("p", { class: "small muted" }, "Esta assinatura é usada nos documentos que " + rot + " assina eletronicamente no Essária."), prev),
+      [{ t: "Fechar" }].concat(atual ? [{ t: "Remover", d: true, f: async () => { const r = await sb.from("assinaturas").delete().eq("perfil_id", S.perfil.id).eq("nome", nome); if (r.error) throw new Error(r.error.message); cache[nome] = null; toast("Assinatura removida."); if (depois) depois(); } }] : [],
         [{ t: atual ? "Desenhar de novo" : "Desenhar a assinatura", p: true, f: async () => {
-          const img = await pad("Minha assinatura"); if (!img) return;
-          const r = await sb.from("assinaturas").upsert({ perfil_id: S.perfil.id, imagem: JSON.stringify(img), atualizado_em: new Date().toISOString() }, { onConflict: "perfil_id" });
+          const img = await pad("Assinatura de " + rot); if (!img) return;
+          const r = await sb.from("assinaturas").upsert({ perfil_id: S.perfil.id, nome, imagem: JSON.stringify(img), atualizado_em: new Date().toISOString() }, { onConflict: "perfil_id,nome" });
           if (r.error) throw new Error(r.error.message.includes("assinaturas") ? "A tabela de assinaturas ainda não foi criada no banco (falta rodar o SQL)." : r.error.message);
-          cache = img; toast("Assinatura salva."); if (depois) depois();
+          cache[nome] = img; toast("Assinatura salva."); if (depois) depois();
         } }]));
   }
   // ---- carimbo e código de verificação ----
   async function sha256(txt) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
   const urlVerificar = cod => location.origin + location.pathname.replace(/index\.html$/, "") + "#/verificar/" + cod;
+  // quem: { nome, tipo: "profissional" | "gestao", registro, area, cargo }
   async function assinar(doc, quem) {
-    const img = await minha(); if (!img) throw new Error("Você ainda não cadastrou a sua assinatura. Use “Minha assinatura” no topo da página.");
-    const em = new Date().toISOString(), base = JSON.parse(JSON.stringify(doc)); delete base.assin; if (base.assinPac) base.assinPac = { nome: base.assinPac.nome, em: base.assinPac.em };
+    const img = await minha(quem.tipo === "gestao" ? quem.nome : ""); if (!img) throw new Error("Falta a assinatura de " + quem.nome + ". Cadastre em “Minha assinatura”, no topo da página.");
+    const em = new Date().toISOString(), base = JSON.parse(JSON.stringify(doc)); delete base.assin;
     const hash = await sha256(JSON.stringify(base) + "|" + quem.nome + "|" + em);
-    doc.assin = { nome: quem.nome, registro: quem.registro || "", tipo: quem.tipo, em, hash, codigo: hash.slice(0, 12).toUpperCase(), imagem: { t: img.t, r: img.r } };
+    doc.assin = { nome: quem.nome, registro: quem.registro || "", area: quem.area || "", cargo: quem.cargo || "", tipo: quem.tipo, em, hash, codigo: hash.slice(0, 12).toUpperCase(), imagem: { t: img.t, r: img.r } };
     return doc;
   }
   // ---- conferência pública por código ----
@@ -73,5 +87,5 @@ window.ASSIN = (function () {
     boasVindas(h("div", {}, h("h2", {}, "Conferir documento"), h("p", { class: "small muted" }, "Digite o código que aparece no rodapé da assinatura do documento. Por privacidade, o nome do paciente não aparece aqui."), campo("Código", inp), h("div", { class: "row", style: "margin-top:10px" }, h("button", { class: "btn-p grow", onclick: conferir }, "Conferir")), res));
     if (cod) conferir();
   }
-  return { pad, minha, telaMinha, assinar, urlVerificar, telaVerificar, sha256 };
+  return { pad, minha, nomesRecepcao, telaMinha, assinar, urlVerificar, telaVerificar, sha256 };
 })();
