@@ -30,7 +30,7 @@ function periodoRel(q) {
   else { de = hoje.slice(0, 8) + "01"; ate = ult(d.getUTCFullYear(), d.getUTCMonth()); }
   return { p: ["custom", "mes_ant", "30d", "ano"].includes(p) ? p : "mes", de, ate };
 }
-const REL_ABAS = [["resumo", "Resumo das consultas"], ["receitas", "Receitas"], ["despesas", "Despesas"], ["repasse", "Repasse por profissional"], ["stats", "Estatísticas da agenda"]];
+const REL_ABAS = [["resumo", "Resumo das consultas"], ["receitas", "Receitas"], ["repasse", "Repasse por profissional"], ["stats", "Estatísticas da agenda"]];
 const STATUS_ORD = ["realizada", "agendada", "confirmada", "faltou", "cancelada_paciente", "cancelada_clinica"];
 const kpi = (t, v, s) => h("div", { class: "kpi" }, h("div", { class: "kpi-t" }, t), h("div", { class: "kpi-v" }, v), s && h("div", { class: "small muted" }, s));
 function barrasRel(itens, fmt) {
@@ -63,8 +63,6 @@ async function vRelatorios(q) {
   const selProf = sel([["", "Todos os profissionais"]].concat(S.profs.filter(p => p.ativo || p.id === profF).map(p => [p.id, nomeCurto(p.nome)])), profF, { style: "width:auto;max-width:230px", onchange: e => go({ f: e.target.value }) });
   const tabs = h("div", { class: "tabs" }, REL_ABAS.map(([k, t]) => h("button", { class: aba === k ? "on" : "", onclick: () => go({ a: k }) }, t)));
 
-  let desp = [], despErro = false;
-  if (aba === "despesas") { try { desp = await todosOsDados(() => { let x = sb.from("despesas").select("*").gte("data", per.de).lte("data", per.ate).order("data", { ascending: false }); if (S.emp) x = x.eq("empresa_id", S.emp); return x; }); } catch (e) { despErro = true; } }
   let corpo, exportar = null;
   const conta = st => ags.filter(a => a.status === st).length;
   if (aba === "resumo") {
@@ -89,19 +87,6 @@ async function vRelatorios(q) {
       h("div", { class: "card" }, h("h2", {}, "Pagamentos"), tabelaRel(["Data", "Paciente", "Profissional", "Forma", "Referência", "Valor"], ordenados.slice(0, 300).map(p => [fmtData(p.pago_em), p.paciente ? p.paciente.nome : "", nomeProf(profDoPgto(p)), FORMAS[p.forma] || p.forma, ref(p), brl(p.valor)]), "Nenhum pagamento neste período.", [5]),
         ordenados.length > 300 && h("div", { class: "small muted", style: "margin-top:8px" }, "Mostrando os 300 mais recentes de " + ordenados.length + ". Use Exportar para ver todos.")));
     exportar = () => baixarCSV("receitas_" + per.de + "_a_" + per.ate + ".csv", [["Data", "Paciente", "Profissional", "Forma", "Referência", "Valor", "Taxa", "Clínica"]].concat(ordenados.map(p => [fmtData(p.pago_em), p.paciente ? p.paciente.nome : "", nomeProf(profDoPgto(p)), FORMAS[p.forma] || p.forma, ref(p), numCSV(p.valor), numCSV(p.taxa), empCod(p.empresa_id) === "atlas" ? "Atlas" : "Essência"])));
-  } else if (aba === "despesas") {
-    if (despErro) corpo = h("div", { class: "warn" }, "A tela de despesas ainda não foi ativada no banco (falta rodar o SQL de criação).");
-    else {
-      const pagas = desp.filter(d => d.pago), pend = desp.filter(d => !d.pago), rec = sum(pgsF, p => p.valor), totP = sum(pagas, d => d.valor);
-      const porCat = {}; desp.forEach(d => { const k = d.categoria || "Sem categoria"; porCat[k] = (porCat[k] || 0) + Number(d.valor || 0); });
-      const itensC = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
-      corpo = h("div", {}, h("div", { class: "kpis" }, kpi("Despesas pagas", brl(totP), empTxt), kpi("Pendentes", brl(sum(pend, d => d.valor)), pend.length + " lançamento(s)"), kpi("Receita no período", brl(rec), "pagamentos recebidos"), kpi("Resultado", brl(rec - totP), "receita − despesas pagas")),
-        itensC.length > 0 && h("div", { class: "card" }, h("h2", {}, "Por categoria"), barrasRel(itensC, brl)),
-        h("div", { class: "card" }, h("div", { class: "row" }, h("h2", { class: "grow" }, "Despesas"), h("button", { class: "btn-p", onclick: () => despModal(null) }, "+ Nova despesa")),
-          tabelaRel(["Data", "Descrição", "Categoria", "Clínica", "Situação", "Valor", ""], desp.map(d => [fmtData(d.data + "T12:00:00-04:00"), d.descricao, d.categoria || "", empBadge(d.empresa_id), h("span", { class: "chip " + (d.pago ? "realizada" : "faltou") }, d.pago ? "Paga" : "Pendente"), brl(d.valor),
-            h("span", { class: "nowrap" }, h("button", { class: "btn-s", onclick: () => despModal(d) }, "Editar"), " ", h("button", { class: "btn-s btn-d", onclick: async () => { if (!confirm("Excluir esta despesa?")) return; try { await ok(sb.from("despesas").delete().eq("id", d.id)); toast("Despesa excluída."); rota(); } catch (e) { toast(e.message, true); } } }, "Excluir"))]), "Nenhuma despesa neste período. Use “+ Nova despesa”.", [5])));
-      exportar = () => baixarCSV("despesas_" + per.de + "_a_" + per.ate + ".csv", [["Data", "Descrição", "Categoria", "Clínica", "Situação", "Valor"]].concat(desp.map(d => [fmtData(d.data + "T12:00:00-04:00"), d.descricao, d.categoria || "", empCod(d.empresa_id) === "atlas" ? "Atlas" : "Essência", d.pago ? "Paga" : "Pendente", numCSV(d.valor)])));
-    }
   } else if (aba === "repasse") {
     const linhas = S.profs.filter(p => p.ativo || pgs.some(x => profDoPgto(x) === p.id)).map(p => {
       const recebido = sum(pgs.filter(x => profDoPgto(x) === p.id), x => x.valor);
@@ -133,17 +118,5 @@ async function vRelatorios(q) {
   return h("div", {}, h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Relatórios"), exportar && h("button", { onclick: exportar }, "⬇ Exportar planilha")),
     h("div", { class: "small muted" }, empTxt + " · " + fmtData(per.de + "T12:00:00-04:00") + " a " + fmtData(per.ate + "T12:00:00-04:00") + ". Para trocar de clínica, use o seletor no topo."),
     tabs, h("div", { class: "row" }, selPer, per.p === "custom" && iDe, per.p === "custom" && iAte, selProf)), corpo,
-    h("div", { class: "small muted" }, "A planilha financeira continua sendo a referência das despesas até a conferência final."));
+    h("div", { class: "small muted" }, "Despesas, taxas e o resultado de cada empresa ficam no financeiro da Essência e da Atlas (planilha), que recebem os pagamentos daqui automaticamente."));
 }
-function despModal(d) {
-  const CATS = ["Repasse profissional", "Taxa de cartão", "Marketing", "Aluguel", "Salários", "Impostos", "Material", "Outros"];
-  const f = { data: h("input", { type: "date", value: d ? d.data : hojeISO() }), cat: h("input", { list: "catDesp", value: d && d.categoria || "", placeholder: "Repasse, marketing, aluguel…" }), desc: h("input", { value: d ? d.descricao : "" }), valor: h("input", { type: "number", step: "0.01", value: d ? d.valor : "" }), pago: sel([["1", "Paga"], ["0", "Pendente"]], d && !d.pago ? "0" : "1"), emp: sel(S.emps.map(e => [e.id, e.nome]), d ? d.empresa_id : (S.emp || (S.emps.find(e => e.codigo === "essencia") || {}).id)) };
-  const corpo = h("div", {}, h("datalist", { id: "catDesp" }, CATS.map(c => h("option", { value: c }))), h("div", { class: "g2" }, campo("Data", f.data), campo("Valor (R$)", f.valor)), campo("Descrição", f.desc), h("div", { class: "g2" }, campo("Categoria", f.cat), campo("Situação", f.pago)), campo("Clínica", f.emp));
-  modal(d ? "Editar despesa" : "Nova despesa", corpo, [{ t: "Cancelar" }, { t: "Salvar", p: true, f: async () => {
-    if (!f.desc.value.trim() || !(Number(f.valor.value) > 0)) { toast("Informe a descrição e o valor.", true); return false; }
-    const row = { data: f.data.value, categoria: f.cat.value.trim() || null, descricao: f.desc.value.trim(), valor: Number(f.valor.value), pago: f.pago.value === "1", empresa_id: f.emp.value };
-    if (d) await ok(sb.from("despesas").update(row).eq("id", d.id)); else await ok(sb.from("despesas").insert(row));
-    toast("Despesa salva."); rota();
-  } }]);
-}
-const sum = (lista, f) => lista.reduce((s, x) => s + Number(f ? f(x) : x || 0), 0);
