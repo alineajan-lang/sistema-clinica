@@ -349,14 +349,16 @@ async function tDocumentos(p) {
 async function vProfissionais() {
   const todos = await ok(sb.from("profissionais").select("*").order("ativo", { ascending: false }).order("nome"));
   S.profs = todos; const lista = todos.filter(atendeEm);
-  const perfis = ehAdmin() ? await ok(sb.from("perfis").select("profissional_id,login,ativo").not("profissional_id", "is", null)) : [];
+  const perfis = ehAdmin() ? await ok(sb.from("perfis").select("id,profissional_id,login,ativo").not("profissional_id", "is", null)) : [];
   S.acessos = Object.fromEntries(perfis.map(p => [p.profissional_id, p]));
+  let comAss = new Set(); if (ehAdmin()) { try { const r = await sb.from("assinaturas").select("perfil_id"); if (!r.error) comAss = new Set(r.data.map(x => x.perfil_id)); } catch (e) {} }
   return h("div", { class: "card" }, h("div", { class: "row" }, h("h1", { class: "grow" }, "Profissionais"), ehAdmin() && h("button", { onclick: () => criarTodosAcessos(lista) }, "Criar acessos de todos"), ehAdmin() && h("button", { class: "btn-p", onclick: () => profModal(null) }, "+ Novo profissional")),
-    h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Área", "Atende em", "Registro", "Acesso", ""].map(t => h("th", {}, t)))), h("tbody", {}, lista.map(x => { const ac = S.acessos[x.id]; return h("tr", { class: "click", onclick: () => ehAdmin() && profModal(x) },
+    h("table", {}, h("thead", {}, h("tr", {}, ["Nome", "Área", "Atende em", "Registro", "Acesso"].concat(ehAdmin() ? ["Assinatura"] : [], [""]).map(t => h("th", {}, t)))), h("tbody", {}, lista.map(x => { const ac = S.acessos[x.id]; return h("tr", { class: "click", onclick: () => ehAdmin() && profModal(x) },
       h("td", {}, h("b", {}, x.nome), !x.ativo && h("span", { class: "chip" }, "inativo")), h("td", {}, x.area),
       h("td", {}, (x.empresas || []).map(id => h("span", { class: "chip " + (empCod(id) === "atlas" ? "atlas" : "") }, empCod(id) === "atlas" ? "Atlas" : "Essência"))),
       h("td", {}, x.registro ? h("span", {}, x.conselho + " " + x.registro, x.rqe && " · RQE " + x.rqe) : h("span", { class: "chip faltou" }, "sem registro")),
       h("td", { class: "small" }, ac ? h("span", { class: "chip " + (ac.ativo ? "realizada" : "") }, ac.login || "acesso", !ac.ativo && " (desativado)") : h("span", { class: "chip" }, "sem acesso")),
+      ehAdmin() && h("td", { class: "small nowrap" }, ac ? [h("span", { class: "chip " + (comAss.has(ac.id) ? "realizada" : "faltou") }, comAss.has(ac.id) ? "cadastrada" : "falta"), " ", h("button", { class: "btn-s", onclick: e => { e.stopPropagation(); ASSIN.enviarArquivo(ac.id, "", x.nome, () => rota()); } }, "Enviar foto ou PDF")] : h("span", { class: "muted" }, "sem acesso")),
       h("td", { class: "small muted" }, x.pode_prescrever ? "prescreve" : "")); }))),
     !ehAdmin() && h("div", { class: "small muted", style: "margin-top:8px" }, "Somente o administrador edita profissionais e acessos."));
 }
