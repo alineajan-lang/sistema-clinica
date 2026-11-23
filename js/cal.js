@@ -309,6 +309,7 @@
       '<div class="note" id="fConf" hidden style="font-weight:700"></div>' +
       '<div class="three"><div class="field"><label for="fServ">Serviço</label><input id="fServ" type="text" list="servList" value="' + esc(d.servico) + '"' + bloq + '></div><div class="field"><label for="fValor">Valor (R$)</label><input id="fValor" type="number" step="0.01" value="' + esc(d.valor) + '"' + bloq + '></div><div class="field"><label for="fMod">Atendimento</label><select id="fMod">' + opt("presencial", "Presencial", d.modalidade !== "online") + opt("online", "💻 Online", d.modalidade === "online") + "</select></div></div></div>" +
       (!c ? '<div class="sect"><h3>Repetir (várias sessões)</h3><div class="two"><div class="field"><label for="fRep">Frequência</label><select id="fRep"><option value="nao">Não repetir</option><option value="sem">Toda semana</option><option value="quin">A cada 2 semanas</option><option value="mes">Todo mês</option></select></div><div class="field"><label for="fRepN">Total de sessões (contando esta)</label><input id="fRepN" type="number" inputmode="numeric" min="2" max="104" value="4"></div></div><div class="note" id="fRepInfo" hidden></div></div>' : "") +
+      (c ? '<div class="sect" id="proxSect" style="display:none"><label class="chk" style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="fProx"> <span id="fProxTxt">Aplicar as mudanças também às próximas sessões</span></label><div class="meta">Vale para as sessões ainda marcadas (agendadas ou confirmadas) deste paciente com este profissional. Se você mudar a data, as próximas andam o mesmo número de dias; se mudar a hora, o profissional, o serviço, o valor ou o tipo de atendimento, elas recebem o mesmo. Observações e pagamentos não mudam.</div></div>' : "") +
       (gestao ? '<div class="sect"><h3>Pagamento</h3><div class="field"><label for="fPac">Pacote</label><select id="fPac"><option value="">— sem pacote —</option></select></div><div id="payBox">' + d.pags.map(payRow).join("") + '</div><div id="paySum" class="meta"></div><div><button type="button" class="btn btn-ghost btn-sm" data-act="payadd">+ Registrar pagamento</button></div></div>' : "") +
       pacoteBloco(c) +
       '<div class="sect"><h3>Notas</h3><div class="field"><textarea id="fObs" placeholder="Adicionar notas">' + esc(d.obs) + "</textarea></div></div>" + (c && gestao ? '<div><button class="btn btn-danger btn-sm" data-act="delcons">Excluir consulta</button></div>' : "");
@@ -316,6 +317,7 @@
     drawer(c ? d.pacienteNome : "Nova consulta", body, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button><button class="btn btn-primary" data-act="savecons" style="flex:1">' + (c ? "Salvar" : "Agendar") + "</button>");
     if (gestao) { fillPacotes(d.pacienteId, c ? c.pacoteId : "").catch(() => {}); updPaySum(); }
     aviso();
+    if (c) sb.from("agendamentos").select("id", { count: "exact", head: true }).eq("paciente_id", c.pacienteId).eq("profissional_id", c.profissionalId).gt("inicio", new Date(toISO(c.data, c.hora)).toISOString()).in("status", ["agendada", "confirmada"]).then(r => { const n = r.count || 0, sx = $("proxSect"); if (sx && n > 0) { sx.style.display = ""; $("fProxTxt").textContent = "Aplicar as mudanças também às próximas " + n + " sessão" + (n === 1 ? "" : "ões") + " marcada" + (n === 1 ? "" : "s"); } }).catch(() => {});
     const q = $("fPacQ"), sug = $("sug"); let t;
     q.addEventListener("input", () => { C.modal.pid = ""; clearTimeout(t); t = setTimeout(async () => {
       const txt = q.value.trim(); if (txt.length < 2) { sug.hidden = true; return; }
@@ -371,6 +373,36 @@
     for (let k = 0; k < rows.length; k += 40) { const ch = rows.slice(k, k + 40), r = await sb.from("agendamentos").insert(ch); if (!r.error) { n += ch.length; continue; } for (const row of ch) { const r2 = await sb.from("agendamentos").insert(row); if (r2.error) falhas++; else n++; } }
     return " " + n + " sessão(ões) futura(s) criada(s)" + (falhas ? "; " + falhas + " não puderam ser criadas" : "") + ".";
   }
+  // ---------- alterar também as próximas sessões ----------
+  // Monta as alterações de cada sessão futura a partir do que mudou na consulta editada (função pura, sem banco)
+  function planejaProximas(c0, nv, alvos) {
+    const dias = Math.round((new Date(nv.data + "T12:00:00-04:00") - new Date(c0.data + "T12:00:00-04:00")) / 864e5);
+    const mudou = { hora: nv.hora !== c0.hora, dur: Number(nv.dur) !== Number(c0.duracao), pro: nv.pro !== c0.profissionalId, serv: (nv.servId || "") !== (c0.servicoId || ""), valor: Number(nv.valor) !== Number(c0.valor), mod: nv.mod !== (c0.modalidade || "presencial") };
+    const alguma = dias !== 0 || Object.values(mudou).some(Boolean);
+    const ups = alvos.map(a => {
+      const dia = addDias(diaDe(a.inicio), dias), hora = mudou.hora ? nv.hora : hhmm(a.inicio), dur = mudou.dur ? Number(nv.dur) : Math.round((new Date(a.fim) - new Date(a.inicio)) / 60000);
+      const ini = new Date(toISO(dia, hora)), fim = new Date(ini.getTime() + dur * 60000), u = { inicio: ini.toISOString(), fim: fim.toISOString() };
+      if (mudou.pro) u.profissional_id = nv.pro; if (mudou.serv) u.servico_id = nv.servId || null; if (mudou.valor) u.valor = Number(nv.valor) || 0; if (mudou.mod) u.modalidade = nv.mod;
+      return { id: a.id, u, rot: fmtData(u.inicio) + " " + hhmm(u.inicio) };
+    });
+    return { alguma, mudou, dias, ups };
+  }
+  async function propagaProximas(c0, nv) {
+    const t0 = new Date(toISO(c0.data, c0.hora)).toISOString();
+    const alvos = await ok(sb.from("agendamentos").select("id,inicio,fim,status").eq("paciente_id", c0.pacienteId).eq("profissional_id", c0.profissionalId).gt("inicio", t0).in("status", ["agendada", "confirmada"]).order("inicio").limit(300));
+    if (!alvos.length) return "";
+    const pl = planejaProximas(c0, nv, alvos); if (!pl.alguma) return "";
+    // conflitos: outras consultas do profissional de destino nos novos horários
+    const pro = pl.mudou.pro ? nv.pro : c0.profissionalId, ids = new Set(alvos.map(a => a.id)); ids.add(c0.id);
+    const ini = pl.ups.map(x => x.u.inicio).sort()[0], fim = pl.ups.map(x => x.u.fim).sort().slice(-1)[0];
+    const outras = (await ok(sb.from("agendamentos").select("id,inicio,fim").eq("profissional_id", pro).not("status", "in", "(cancelada_paciente,cancelada_clinica)").lt("inicio", fim).gt("fim", ini).limit(1000))).filter(o => !ids.has(o.id));
+    const choque = x => outras.some(o => new Date(o.inicio) < new Date(x.u.fim) && new Date(x.u.inicio) < new Date(o.fim));
+    const bons = pl.ups.filter(x => !choque(x)), ruins = pl.ups.filter(choque);
+    if (ruins.length && !confirm(ruins.length + " das próximas sessões ficariam em horário já ocupado (" + ruins.slice(0, 5).map(x => x.rot).join(", ") + (ruins.length > 5 ? "…" : "") + "). Elas NÃO serão alteradas. Alterar as outras " + bons.length + "?")) throw new Error("Nenhuma sessão futura foi alterada.");
+    for (const x of bons) await ok(sb.from("agendamentos").update(x.u).eq("id", x.id));
+    return bons.length ? " Também alterei as próximas " + bons.length + " sessão" + (bons.length === 1 ? "" : "ões") + (ruins.length ? " (" + ruins.length + " ficaram como estavam, por choque de horário)." : ".") : "";
+  }
+  window.CAL_planejaProximas = planejaProximas;
   async function salvaCons(statusOverride) {
     const M = C.modal; if (!M) return;
     let msgF = "";
@@ -380,8 +412,11 @@
       if (!CANC(st0)) { const cf0 = conflito(M.id, S.perfil.profissional_id, val("fData"), val("fHora"), val("fDur")); if (cf0) { aviso(); return toast("Você já tem um paciente nesse horário.", true); } }
       const s0 = S.servs.find(x => norm(x.nome) === norm(val("fServ"))), ini0 = new Date(toISO(val("fData"), val("fHora"))), fim0 = new Date(ini0.getTime() + (Number(val("fDur")) || 60) * 60000);
       const base = { servico_id: s0 ? s0.id : null, inicio: ini0.toISOString(), fim: fim0.toISOString(), status: st0, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
-      if (M.id) await ok(sb.from("agendamentos").update(base).eq("id", M.id));
-      else {
+      if (M.id) {
+        const c0p = C.cons.find(x => x.id === M.id);
+        await ok(sb.from("agendamentos").update(base).eq("id", M.id));
+        if (c0p && $("fProx") && $("fProx").checked) msgF += await propagaProximas(c0p, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: c0p.profissionalId, servId: s0 ? s0.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" });
+      } else {
         const pid0 = M.pid; if (!pid0) return toast("Escolha um paciente da sua lista (digite o nome e clique no resultado).", true);
         const sc0 = serieCfg(); let extra0 = [];
         if (sc0) { const pl0 = await planejaSerie(S.perfil.profissional_id, sc0, 0); if (!pl0) return; extra0 = pl0.extra; }
@@ -418,6 +453,7 @@
     const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
     let aid = M.id;
     if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; if (extra.length) msgF = await criaSerie(row, extra, val("fHora"), val("fDur")); }
+    if (M.id && $("fProx") && $("fProx").checked) { const c0g = C.cons.find(x => x.id === M.id); if (c0g) msgF += await propagaProximas(c0g, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: val("fPro"), servId: s ? s.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" }); }
     // pagamentos da sessão
     const existentes = M.id ? (C.cons.find(x => x.id === M.id).pagamentos) : [], mantidos = new Set(pags.filter(x => x.id).map(x => x.id));
     for (const e of existentes) if (!mantidos.has(e.id)) await ok(sb.from("pagamentos").delete().eq("id", e.id));
