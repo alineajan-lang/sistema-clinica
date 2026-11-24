@@ -77,12 +77,13 @@ const TAB_ICO = {
   pacientes: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14c2.8 0 4.5 1.8 4.5 4.5"/>',
   pacotes: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
   relatorios: '<path d="M5 20V10M11 20V4M17 20v-7M3 20h18"/>',
+  conversas: '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/>',
   areceber: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9c-.6-1-1.5-1.4-2.5-1.4-1.5 0-2.6.8-2.6 2s1 1.7 2.6 2 2.6.8 2.6 2-1.1 2-2.6 2c-1.1 0-2-.5-2.6-1.5M12 6v1.6M12 16.4V18"/>',
   profissionais: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.6 1.6-2.3 2.5-2.3s1.9.7 2.5 2.3M14 10h4M14 13.5h3"/>'
 };
 function svgIco(k) { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.8"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.innerHTML = TAB_ICO[k]; return s; }
 function shell(conteudo, ativo) {
-  const nav = [["agenda", "Agenda"], ["pacientes", "Pacientes"]].concat(ehGestao() ? [["pacotes", "Pacotes"], ["areceber", "A receber"], ["relatorios", "Relatórios"], ["profissionais", "Profissionais"]] : []);
+  const nav = [["agenda", "Agenda"], ["pacientes", "Pacientes"]].concat(ehGestao() ? [["conversas", "Conversas"], ["pacotes", "Pacotes"], ["areceber", "A receber"], ["relatorios", "Relatórios"], ["profissionais", "Profissionais"]] : []);
   const eid = c => (S.emps.find(e => e.codigo === c) || {}).id || "";
   const ctx = S.emp && S.emp === eid("atlas") ? "atlas" : S.emp ? "essencia" : "todas";
   document.body.dataset.emp = ctx;
@@ -106,6 +107,7 @@ async function rota() {
     if (v === "agenda") el = await vAgenda(q);
     else if (v === "pacientes") el = await vPacientes(q);
     else if (v === "paciente") el = await vFicha(partes[1], q);
+    else if (v === "conversas" && ehGestao()) el = await vConversas(q);
     else if (v === "pacotes" && ehGestao()) el = await vPacotes(q);
     else if (v === "areceber" && ehGestao()) el = await vAReceber(q);
     else if (v === "relatorios" && ehGestao()) el = await vRelatorios(q);
