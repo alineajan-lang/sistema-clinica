@@ -272,7 +272,8 @@
   function updPaySum() { const el = $("paySum"); if (!el) return; const v = Number(val("fValor")) || 0, t = readPays().reduce((a, x) => a + x.valor, 0), sd = Math.round((v - t) * 100) / 100; el.textContent = v <= 0 ? "Sem valor a cobrar." : (t <= 0 ? "Nada recebido. Saldo " + brl(v) + "." : "Recebido " + brl(t) + " de " + brl(v) + (sd > 0 ? " · saldo " + brl(sd) : (sd < 0 ? " · " + brl(-sd) + " a mais" : " · quitado"))); }
   function conflito(selfId, pro, dd, hora, dur) {
     if (!pro || !dd || !hora) return null; const ini = toMin(hora), fim = ini + (Number(dur) || 60);
-    return C.cons.find(c => c.id !== selfId && c.profissionalId === pro && c.data === dd && !CANC(c.status) && toMin(c.hora) < fim && ini < toMin(c.hora) + c.duracao) || null;
+    const ign = (C.modal && C.modal.id === selfId && C.proxIds && $("fProx") && $("fProx").checked) ? C.proxIds : null;
+    return C.cons.find(c => c.id !== selfId && !(ign && ign.has(c.id)) && c.profissionalId === pro && c.data === dd && !CANC(c.status) && toMin(c.hora) < fim && ini < toMin(c.hora) + c.duracao) || null;
   }
   function aviso() {
     const el = $("fConf"); if (!el || !C.modal) return; const st = val("fSt") || "agendada", c = CANC(st) ? null : conflito(C.modal.id, val("fPro"), val("fData"), val("fHora"), val("fDur"));
@@ -317,7 +318,8 @@
     drawer(c ? d.pacienteNome : "Nova consulta", body, '<button class="btn btn-ghost" data-act="closemodal">Fechar</button><button class="btn btn-primary" data-act="savecons" style="flex:1">' + (c ? "Salvar" : "Agendar") + "</button>");
     if (gestao) { fillPacotes(d.pacienteId, c ? c.pacoteId : "").catch(() => {}); updPaySum(); }
     aviso();
-    if (c) sb.from("agendamentos").select("id", { count: "exact", head: true }).eq("paciente_id", c.pacienteId).eq("profissional_id", c.profissionalId).gt("inicio", new Date(toISO(c.data, c.hora)).toISOString()).in("status", ["agendada", "confirmada"]).then(r => { const n = r.count || 0, sx = $("proxSect"); if (sx && n > 0) { sx.style.display = ""; $("fProxTxt").textContent = "Aplicar as mudanças também às próximas " + n + " sessão" + (n === 1 ? "" : "ões") + " marcada" + (n === 1 ? "" : "s"); } }).catch(() => {});
+    C.proxIds = new Set();
+    if (c) sb.from("agendamentos").select("id").eq("paciente_id", c.pacienteId).eq("profissional_id", c.profissionalId).gt("inicio", new Date(toISO(c.data, c.hora)).toISOString()).in("status", ["agendada", "confirmada"]).limit(300).then(r => { C.proxIds = new Set((r.data || []).map(x => x.id)); const n = C.proxIds.size, sx = $("proxSect"); if (n > 0 && $("fProx")) $("fProx").addEventListener("change", aviso); if (sx && n > 0) { sx.style.display = ""; $("fProxTxt").textContent = "Aplicar as mudanças também às próximas " + n + " sessão" + (n === 1 ? "" : "ões") + " marcada" + (n === 1 ? "" : "s"); } }).catch(() => {});
     const q = $("fPacQ"), sug = $("sug"); let t;
     q.addEventListener("input", () => { C.modal.pid = ""; clearTimeout(t); t = setTimeout(async () => {
       const txt = q.value.trim(); if (txt.length < 2) { sug.hidden = true; return; }
@@ -387,19 +389,35 @@
     });
     return { alguma, mudou, dias, ups };
   }
-  async function propagaProximas(c0, nv) {
+  // Grava a consulta editada junto com as próximas, numa ordem que nunca bate no "Horário já ocupado" do banco
+  // (ex.: empurrar a sessão de segunda para a outra segunda, que ainda está no lugar antigo).
+  async function aplicaEmOrdem(lista, subir) {
+    lista.sort((x, y) => subir ? (x.old < y.old ? 1 : -1) : (x.old < y.old ? -1 : 1));
+    let pend = lista;
+    while (pend.length) {
+      const falhou = []; let erro = null;
+      for (const x of pend) { const r = await sb.from("agendamentos").update(x.u).eq("id", x.id); if (r.error) { if (/ocupado|sem_choque|overlap|exclusion|conflicting/i.test(r.error.message)) { falhou.push(x); erro = r.error; } else throw new Error(r.error.message); } }
+      if (falhou.length === pend.length) throw new Error("Horário já ocupado para este profissional." + (falhou.length < lista.length ? " Algumas sessões já foram alteradas; confira a agenda." : ""));
+      pend = falhou;
+    }
+  }
+  async function salvaMaisProximas(c0, nv, mainUpd) {
     const t0 = new Date(toISO(c0.data, c0.hora)).toISOString();
     const alvos = await ok(sb.from("agendamentos").select("id,inicio,fim,status").eq("paciente_id", c0.pacienteId).eq("profissional_id", c0.profissionalId).gt("inicio", t0).in("status", ["agendada", "confirmada"]).order("inicio").limit(300));
-    if (!alvos.length) return "";
-    const pl = planejaProximas(c0, nv, alvos); if (!pl.alguma) return "";
+    const pl = alvos.length ? planejaProximas(c0, nv, alvos) : null;
+    if (!pl || !pl.alguma) { await ok(sb.from("agendamentos").update(mainUpd).eq("id", c0.id)); return ""; }
     // conflitos: outras consultas do profissional de destino nos novos horários
     const pro = pl.mudou.pro ? nv.pro : c0.profissionalId, ids = new Set(alvos.map(a => a.id)); ids.add(c0.id);
-    const ini = pl.ups.map(x => x.u.inicio).sort()[0], fim = pl.ups.map(x => x.u.fim).sort().slice(-1)[0];
-    const outras = (await ok(sb.from("agendamentos").select("id,inicio,fim").eq("profissional_id", pro).not("status", "in", "(cancelada_paciente,cancelada_clinica)").lt("inicio", fim).gt("fim", ini).limit(1000))).filter(o => !ids.has(o.id));
-    const choque = x => outras.some(o => new Date(o.inicio) < new Date(x.u.fim) && new Date(x.u.inicio) < new Date(o.fim));
-    const bons = pl.ups.filter(x => !choque(x)), ruins = pl.ups.filter(choque);
-    if (ruins.length && !confirm(ruins.length + " das próximas sessões ficariam em horário já ocupado (" + ruins.slice(0, 5).map(x => x.rot).join(", ") + (ruins.length > 5 ? "…" : "") + "). Elas NÃO serão alteradas. Alterar as outras " + bons.length + "?")) throw new Error("Nenhuma sessão futura foi alterada.");
-    for (const x of bons) await ok(sb.from("agendamentos").update(x.u).eq("id", x.id));
+    const todos = pl.ups.map(x => x.u).concat([mainUpd]);
+    const ini = todos.map(u => u.inicio).sort()[0], fim = todos.map(u => u.fim).sort().slice(-1)[0];
+    const outras = (await ok(sb.from("agendamentos").select("id,inicio,fim").eq("profissional_id", pro).not("status", "in", "(cancelada_paciente,cancelada_clinica)").lt("inicio", fim).gt("fim", ini).limit(2000))).filter(o => !ids.has(o.id));
+    const choqueU = u => outras.some(o => new Date(o.inicio) < new Date(u.fim) && new Date(u.inicio) < new Date(o.fim));
+    if (!CANC(mainUpd.status) && choqueU(mainUpd)) throw new Error("Horário já ocupado para este profissional.");
+    const bons = pl.ups.filter(x => !choqueU(x.u)), ruins = pl.ups.filter(x => choqueU(x.u));
+    if (ruins.length && !confirm(ruins.length + " das próximas sessões ficariam em horário já ocupado (" + ruins.slice(0, 5).map(x => x.rot).join(", ") + (ruins.length > 5 ? "…" : "") + "). Elas NÃO serão alteradas. Alterar as outras " + bons.length + "?")) throw new Error("Nenhuma sessão foi alterada.");
+    const velho = {}; alvos.forEach(a => { velho[a.id] = a.inicio; });
+    const lista = [{ id: c0.id, u: mainUpd, old: t0 }].concat(bons.map(x => ({ id: x.id, u: x.u, old: velho[x.id] })));
+    await aplicaEmOrdem(lista, mainUpd.inicio > t0);
     return bons.length ? " Também alterei as próximas " + bons.length + " sessão" + (bons.length === 1 ? "" : "ões") + (ruins.length ? " (" + ruins.length + " ficaram como estavam, por choque de horário)." : ".") : "";
   }
   window.CAL_planejaProximas = planejaProximas;
@@ -414,8 +432,7 @@
       const base = { servico_id: s0 ? s0.id : null, inicio: ini0.toISOString(), fim: fim0.toISOString(), status: st0, valor: Number(val("fValor")) || 0, comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
       if (M.id) {
         const c0p = C.cons.find(x => x.id === M.id);
-        await ok(sb.from("agendamentos").update(base).eq("id", M.id));
-        if (c0p && $("fProx") && $("fProx").checked) msgF += await propagaProximas(c0p, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: c0p.profissionalId, servId: s0 ? s0.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" });
+        if (c0p && $("fProx") && $("fProx").checked) msgF += await salvaMaisProximas(c0p, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: c0p.profissionalId, servId: s0 ? s0.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" }, base); else await ok(sb.from("agendamentos").update(base).eq("id", M.id));
       } else {
         const pid0 = M.pid; if (!pid0) return toast("Escolha um paciente da sua lista (digite o nome e clique no resultado).", true);
         const sc0 = serieCfg(); let extra0 = [];
@@ -452,8 +469,9 @@
     }
     const row = { empresa_id: emp, paciente_id: pid, profissional_id: val("fPro"), servico_id: s ? s.id : null, pacote_id: pacoteId, inicio: ini.toISOString(), fim: fim.toISOString(), status: st, valor: (valorSessao != null && !(Number(val("fValor")) > 0)) ? valorSessao : (Number(val("fValor")) || 0), comentario: val("fObs") || null, modalidade: val("fMod") || "presencial" };
     let aid = M.id;
-    if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; if (extra.length) msgF = await criaSerie(row, extra, val("fHora"), val("fDur")); }
-    if (M.id && $("fProx") && $("fProx").checked) { const c0g = C.cons.find(x => x.id === M.id); if (c0g) msgF += await propagaProximas(c0g, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: val("fPro"), servId: s ? s.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" }); }
+    const c0g = (aid && $("fProx") && $("fProx").checked) ? C.cons.find(x => x.id === aid) : null;
+    if (aid && c0g) msgF += await salvaMaisProximas(c0g, { data: val("fData"), hora: val("fHora"), dur: val("fDur"), pro: val("fPro"), servId: s ? s.id : "", valor: val("fValor"), mod: val("fMod") || "presencial" }, row);
+    else if (aid) await ok(sb.from("agendamentos").update(row).eq("id", aid)); else { const n = await ok(sb.from("agendamentos").insert(row).select("id").single()); aid = n.id; if (extra.length) msgF = await criaSerie(row, extra, val("fHora"), val("fDur")); }
     // pagamentos da sessão
     const existentes = M.id ? (C.cons.find(x => x.id === M.id).pagamentos) : [], mantidos = new Set(pags.filter(x => x.id).map(x => x.id));
     for (const e of existentes) if (!mantidos.has(e.id)) await ok(sb.from("pagamentos").delete().eq("id", e.id));
